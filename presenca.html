@@ -1,0 +1,726 @@
+<!doctype html>
+<html lang="pt-BR">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+        <title>Presença - Conta Google</title>
+        <style>
+            @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap");
+            :root {
+                --bg: #0d0f14;
+                --bg2: #13161e;
+                --bg3: #1a1e2a;
+                --border: #2a2f3f;
+                --border2: #3a4155;
+                --text: #e8eaf0;
+                --text2: #8890a8;
+                --text3: #757e88;
+                --accent: #4f8fff;
+                --accent2: #2563eb;
+                --success: #22c55e;
+                --warn: #f59e0b;
+                --danger: #ef4444;
+                --mono: "IBM Plex Mono", monospace;
+                --sans: "IBM Plex Sans", sans-serif;
+                --r: 6px;
+            }
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+            html,
+            body {
+                min-height: 100%;
+                background: var(--bg);
+                color: var(--text);
+                font-family: var(--sans);
+                font-size: 14px;
+                line-height: 1.5;
+                -webkit-font-smoothing: antialiased;
+            }
+
+            .tela {
+                display: none;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+                padding: 24px;
+            }
+            .tela.ativa {
+                display: flex;
+            }
+            .box {
+                width: 100%;
+                max-width: 400px;
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+            }
+            .box.centro {
+                align-items: center;
+                text-align: center;
+            }
+
+            #google-btn-container {
+                min-height: 44px;
+                display: flex;
+                justify-content: center;
+            }
+            #login-abrir-nova-aba {
+                display: none;
+                color: var(--accent);
+                font-size: 12px;
+                text-decoration: underline;
+                cursor: pointer;
+                background: none;
+                border: none;
+                font-family: var(--sans);
+            }
+
+            .card {
+                background: var(--bg2);
+                border: 1px solid var(--border);
+                border-radius: var(--r);
+                padding: 18px 20px;
+                width: 100%;
+            }
+            h1 {
+                font-size: 16px;
+                font-weight: 600;
+            }
+            h2 {
+                font-size: 10px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                color: var(--text3);
+                margin-bottom: 10px;
+            }
+            p.sub {
+                color: var(--text3);
+                font-size: 12px;
+            }
+
+            .btn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                padding: 11px 16px;
+                border-radius: var(--r);
+                font-family: var(--sans);
+                font-size: 13px;
+                font-weight: 500;
+                cursor: pointer;
+                border: none;
+                outline: none;
+                transition: all 0.15s;
+                width: 100%;
+            }
+            .btn-primary {
+                background: var(--accent);
+                color: #fff;
+            }
+            .btn-primary:hover {
+                background: var(--accent2);
+            }
+            .btn-ghost {
+                background: transparent;
+                color: var(--text2);
+                border: 1px solid var(--border);
+            }
+            .btn-ghost:hover {
+                border-color: var(--border2);
+                color: var(--text);
+            }
+            .btn:disabled {
+                opacity: 0.4;
+                cursor: not-allowed;
+            }
+
+            input[type="text"] {
+                background: var(--bg3);
+                border: 1px solid var(--border);
+                border-radius: var(--r);
+                color: var(--text);
+                font-family: var(--mono);
+                font-size: 14px;
+                padding: 10px 12px;
+                outline: none;
+                transition: border-color 0.15s;
+                width: 100%;
+            }
+            input:focus {
+                border-color: var(--accent);
+            }
+            input.destaque {
+                border-color: var(--warn);
+            }
+            label {
+                font-family: var(--mono);
+                font-size: 10px;
+                color: var(--text3);
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                display: block;
+                margin-bottom: 4px;
+            }
+            .field {
+                display: flex;
+                flex-direction: column;
+                gap: 5px;
+                text-align: left;
+            }
+            .field .dica {
+                font-size: 11px;
+                color: var(--text3);
+                margin-top: 2px;
+            }
+
+            #chip-identidade {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 12px;
+                color: var(--text2);
+            }
+            #chip-identidade img {
+                width: 22px;
+                height: 22px;
+                border-radius: 50%;
+            }
+
+            .badge {
+                font-size: 9px;
+                padding: 2px 7px;
+                border-radius: 3px;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                font-family: var(--mono);
+                display: inline-block;
+            }
+            .badge-ok {
+                background: #14532d;
+                color: #4ade80;
+            }
+            .badge-pendente {
+                background: #451a03;
+                color: #fbbf24;
+            }
+            .badge-erro {
+                background: #450a0a;
+                color: #f87171;
+            }
+
+            .resultado-icone {
+                font-size: 40px;
+            }
+
+            .aviso-caixa {
+                font-size: 12px;
+                border-radius: var(--r);
+                padding: 10px 12px;
+                text-align: left;
+            }
+            .aviso-caixa.warn {
+                background: #451a03;
+                color: #fbbf24;
+                border: 1px solid #78350f;
+            }
+            .aviso-caixa.erro {
+                background: #450a0a;
+                color: #f87171;
+                border: 1px solid #7f1d1d;
+            }
+
+            .lista-registros {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                margin-top: 4px;
+                max-height: 320px;
+                overflow-y: auto;
+            }
+            .reg-row {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 8px 10px;
+                border-radius: var(--r);
+                background: var(--bg3);
+                border: 1px solid var(--border);
+                font-family: var(--mono);
+                font-size: 11px;
+            }
+            .reg-dh {
+                color: var(--text3);
+                white-space: nowrap;
+            }
+            .reg-disc {
+                flex: 1;
+                color: var(--text);
+                font-weight: 600;
+            }
+
+            #top-spinner {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 3px;
+                background: linear-gradient(90deg, var(--accent), #06b6d4);
+                z-index: 9998;
+                animation: slide 1s infinite;
+            }
+            @keyframes slide {
+                0% {
+                    transform: translateX(-100%);
+                }
+                100% {
+                    transform: translateX(100%);
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div id="top-spinner"></div>
+
+        <!-- ==================== LINK INVÁLIDO ==================== -->
+        <div class="tela" id="tela-sem-codigo">
+            <div class="box centro">
+                <h1>PRESENÇA</h1>
+                <div class="aviso-caixa erro">
+                    Este link não contém um código de presença válido. Peça
+                    ao professor um novo QR Code e escaneie novamente.
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== LOGIN ==================== -->
+        <div class="tela" id="tela-login">
+            <div class="box centro">
+                <h1>PRESENÇA</h1>
+                <p class="sub">
+                    Entre com sua conta Google (pessoal ou institucional) para
+                    registrar presença.
+                </p>
+                <div id="google-btn-container"></div>
+                <button
+                    type="button"
+                    id="login-abrir-nova-aba"
+                    onclick="window.open(location.href, '_blank')"
+                >
+                    O botão não apareceu? Abrir em uma nova aba
+                </button>
+                <div
+                    id="login-erro"
+                    class="aviso-caixa erro"
+                    style="display: none"
+                ></div>
+            </div>
+        </div>
+
+        <!-- ==================== CONFIRMAR PRESENÇA ==================== -->
+        <div class="tela" id="tela-confirmar">
+            <div class="box">
+                <div id="chip-identidade"></div>
+                <div class="card">
+                    <h2>Confirmar presença</h2>
+                    <div class="field">
+                        <label for="inp-matricula">Matrícula (opcional)</label>
+                        <input
+                            type="text"
+                            id="inp-matricula"
+                            inputmode="numeric"
+                            placeholder="Deixe em branco se já registrou antes"
+                        />
+                        <div class="dica">
+                            Só é necessário informar a matrícula no seu
+                            primeiro registro com esta conta Google.
+                        </div>
+                    </div>
+                    <div
+                        id="aviso-matricula"
+                        class="aviso-caixa warn"
+                        style="display: none; margin-top: 10px"
+                    ></div>
+                    <button
+                        class="btn btn-primary"
+                        style="margin-top: 14px"
+                        id="btn-registrar"
+                        onclick="registrarPresenca()"
+                    >
+                        Registrar presença
+                    </button>
+                </div>
+                <button class="btn btn-ghost" onclick="fazerLogout()">
+                    Sair / trocar de conta
+                </button>
+            </div>
+        </div>
+
+        <!-- ==================== RESULTADO ==================== -->
+        <div class="tela" id="tela-resultado">
+            <div class="box">
+                <div class="card box centro" style="gap: 10px">
+                    <div class="resultado-icone" id="resultado-icone">✅</div>
+                    <h1 id="resultado-titulo">Presença registrada</h1>
+                    <div id="resultado-badge"></div>
+                    <p class="sub" id="resultado-detalhe"></p>
+                </div>
+                <div class="card">
+                    <h2>
+                        Seus últimos registros
+                        (<span id="contador-registros">0</span>)
+                    </h2>
+                    <div class="lista-registros" id="lista-registros">
+                        <p class="sub">Carregando…</p>
+                    </div>
+                </div>
+                <button class="btn btn-ghost" onclick="fazerLogout()">
+                    Sair / trocar de conta
+                </button>
+            </div>
+        </div>
+
+        <script
+            src="https://accounts.google.com/gsi/client"
+            async
+            defer
+        ></script>
+        <script>
+            // =====================================================================
+            // CONFIG
+            // =====================================================================
+            const BACKEND_URL =
+                "https://script.google.com/macros/s/AKfycbwSI8ibnsfXXbezbhKb7YdHgztoUL-c88zds_NH1l134eCIxY2PcXVRSoenCNGMJI79Ew/exec";
+
+            const GOOGLE_CLIENT_ID =
+                "534571821691-7gvp1ubpltfg86fo6ouetf5ci209ah4h.apps.googleusercontent.com";
+
+            let _idToken = "";
+            let _perfilGoogle = null;
+            let _codigoQR = "";
+            let _ipCache = "";
+            let _ipCacheEm = 0;
+
+            const MENSAGENS_ERRO = {
+                CODIGO_MAL_FORMADO:
+                    "Este link de presença é inválido. Escaneie o QR Code novamente.",
+                CODIGO_INVALIDO:
+                    "Este código não é válido. Escaneie o QR Code exibido na sala.",
+                CODIGO_SEM_DISCIPLINA_ATIVA:
+                    "Não havia nenhuma disciplina ativa quando este QR foi gerado.",
+                CODIGO_EXPIRADO:
+                    "Este código expirou. Volte à tela do QR Code e escaneie o código atual.",
+                DISCIPLINA_DESCONHECIDA:
+                    "Não foi possível identificar a disciplina deste código.",
+                REGISTRO_BLOQUEADO_NO_HORARIO:
+                    "O registro está temporariamente bloqueado neste horário. Tente novamente em alguns minutos.",
+                FORA_DO_HORARIO:
+                    "Já não é mais possível registrar presença para esta aula.",
+                MATRICULA_NAO_ENCONTRADA:
+                    "Não encontramos essa matrícula. Confira o número e tente de novo.",
+                ERRO_DE_REDE: "Falha de conexão. Tente novamente.",
+            };
+
+            // =====================================================================
+            // UTILITÁRIOS
+            // =====================================================================
+            function spin(on) {
+                document.getElementById("top-spinner").style.display = on
+                    ? "block"
+                    : "none";
+            }
+
+            function esc(s) {
+                return String(s || "")
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;");
+            }
+
+            function mostrarTela(id) {
+                document
+                    .querySelectorAll(".tela")
+                    .forEach((t) => t.classList.remove("ativa"));
+                document.getElementById(id).classList.add("ativa");
+            }
+
+            async function obterIpPublico() {
+                if (_ipCache && Date.now() - _ipCacheEm < 5 * 60000)
+                    return _ipCache;
+                try {
+                    const r = await fetch("https://api.ipify.org?format=json", {
+                        cache: "no-store",
+                    });
+                    const j = await r.json();
+                    _ipCache = j.ip || "";
+                    _ipCacheEm = Date.now();
+                    return _ipCache;
+                } catch (e) {
+                    return "";
+                }
+            }
+
+            // =====================================================================
+            // API
+            // =====================================================================
+            async function api(action, body = {}) {
+                const payload = { action, id_token: _idToken, ...body };
+                try {
+                    const r = await fetch(BACKEND_URL, {
+                        method: "POST",
+                        cache: "no-store",
+                        headers: { "Content-Type": "text/plain" },
+                        body: JSON.stringify(payload),
+                    });
+                    return await r.json();
+                } catch (e) {
+                    return { ok: false, erro: "ERRO_DE_REDE" };
+                }
+            }
+
+            // =====================================================================
+            // LOGIN — Google Identity Services
+            // =====================================================================
+            function decodificarPayloadJwt(jwt) {
+                try {
+                    const base64 = jwt
+                        .split(".")[1]
+                        .replace(/-/g, "+")
+                        .replace(/_/g, "/");
+                    return JSON.parse(decodeURIComponent(escape(atob(base64))));
+                } catch (_) {
+                    return null;
+                }
+            }
+
+            function initGoogleSignIn() {
+                if (!window.google || !google.accounts || !google.accounts.id) {
+                    document.getElementById(
+                        "login-abrir-nova-aba",
+                    ).style.display = "inline";
+                    setTimeout(initGoogleSignIn, 800);
+                    return;
+                }
+                google.accounts.id.initialize({
+                    client_id: GOOGLE_CLIENT_ID,
+                    callback: aoReceberCredencialGoogle,
+                    auto_select: false,
+                    cancel_on_tap_outside: false,
+                });
+                google.accounts.id.renderButton(
+                    document.getElementById("google-btn-container"),
+                    {
+                        theme: "filled_blue",
+                        size: "large",
+                        width: 320,
+                        text: "signin_with",
+                        locale: "pt-BR",
+                    },
+                );
+                document.getElementById("login-abrir-nova-aba").style.display =
+                    "inline";
+            }
+
+            async function aoReceberCredencialGoogle(response) {
+                const erroEl = document.getElementById("login-erro");
+                erroEl.style.display = "none";
+
+                const payload = decodificarPayloadJwt(response.credential);
+                if (!payload) {
+                    erroEl.textContent =
+                        "Não foi possível ler os dados da conta Google.";
+                    erroEl.style.display = "block";
+                    return;
+                }
+
+                _idToken = response.credential;
+                _perfilGoogle = {
+                    email: payload.email,
+                    nome: payload.name,
+                    foto: payload.picture,
+                };
+
+                renderizarChipIdentidade();
+                mostrarTela("tela-confirmar");
+            }
+
+            function renderizarChipIdentidade() {
+                const chip = document.getElementById("chip-identidade");
+                if (!_perfilGoogle) {
+                    chip.innerHTML = "";
+                    return;
+                }
+                const foto = _perfilGoogle.foto
+                    ? `<img src="${esc(_perfilGoogle.foto)}" referrerpolicy="no-referrer" />`
+                    : "";
+                chip.innerHTML = `${foto}<span>${esc(_perfilGoogle.email)}</span>`;
+            }
+
+            function fazerLogout() {
+                if (window.google && google.accounts && google.accounts.id) {
+                    google.accounts.id.disableAutoSelect();
+                }
+                _idToken = "";
+                _perfilGoogle = null;
+                document.getElementById("chip-identidade").innerHTML = "";
+                document.getElementById("inp-matricula").value = "";
+                document.getElementById("aviso-matricula").style.display =
+                    "none";
+                mostrarTela("tela-login");
+                initGoogleSignIn();
+            }
+
+            // =====================================================================
+            // REGISTRO DE PRESENÇA
+            // =====================================================================
+            async function registrarPresenca(matriculaForcada) {
+                const btn = document.getElementById("btn-registrar");
+                const matricula =
+                    matriculaForcada !== undefined
+                        ? matriculaForcada
+                        : document.getElementById("inp-matricula").value.trim();
+                const avisoEl = document.getElementById("aviso-matricula");
+                avisoEl.style.display = "none";
+
+                btn.disabled = true;
+                spin(true);
+                const ip = await obterIpPublico();
+                const resp = await api("registrarPresenca", {
+                    codigo: _codigoQR,
+                    matricula_selecionada: matricula || null,
+                    ip_frontend: ip,
+                });
+                spin(false);
+                btn.disabled = false;
+
+                if (resp.ok === false && resp.erro === "PRECISA_MATRICULA") {
+                    avisoEl.textContent =
+                        "Não reconhecemos esta conta Google ainda. Informe sua matrícula acima para que este primeiro registro seja validado.";
+                    avisoEl.style.display = "block";
+                    document
+                        .getElementById("inp-matricula")
+                        .classList.add("destaque");
+                    document.getElementById("inp-matricula").focus();
+                    return;
+                }
+
+                if (!resp.ok) {
+                    avisoEl.className = "aviso-caixa erro";
+                    avisoEl.textContent =
+                        MENSAGENS_ERRO[resp.erro] ||
+                        "Não foi possível registrar a presença (" +
+                            (resp.erro || "erro desconhecido") +
+                            ").";
+                    avisoEl.style.display = "block";
+                    return;
+                }
+
+                mostrarResultado(resp);
+                carregarMeusRegistros();
+            }
+
+            function mostrarResultado(resp) {
+                const icone = document.getElementById("resultado-icone");
+                const titulo = document.getElementById("resultado-titulo");
+                const badge = document.getElementById("resultado-badge");
+                const detalhe = document.getElementById("resultado-detalhe");
+
+                if (resp.status_vinculo === "pendente_revisao") {
+                    icone.textContent = "⏳";
+                    titulo.textContent = "Presença registrada";
+                    badge.innerHTML =
+                        '<span class="badge badge-pendente">aguardando confirmação do professor</span>';
+                    detalhe.textContent =
+                        "Seu e-mail ainda não pôde ser vinculado automaticamente à sua matrícula.";
+                } else {
+                    icone.textContent = "✅";
+                    titulo.textContent = "Presença registrada";
+                    badge.innerHTML =
+                        '<span class="badge badge-ok">confirmada</span>';
+                    detalhe.textContent = resp.disciplina
+                        ? `Disciplina: ${resp.disciplina} — ${resp.data} ${resp.hora}`
+                        : `${resp.data} ${resp.hora}`;
+                }
+                mostrarTela("tela-resultado");
+            }
+
+            async function carregarMeusRegistros() {
+                const cont = document.getElementById("lista-registros");
+                const resp = await api("listarMeusRegistros");
+                if (!resp.ok || !Array.isArray(resp.registros)) {
+                    cont.innerHTML =
+                        '<p class="sub">Não foi possível carregar seus registros.</p>';
+                    document.getElementById("contador-registros").textContent =
+                        "0";
+                    return;
+                }
+                document.getElementById("contador-registros").textContent =
+                    resp.registros.length;
+                if (!resp.registros.length) {
+                    cont.innerHTML =
+                        '<p class="sub">Nenhum registro encontrado ainda.</p>';
+                    return;
+                }
+                cont.innerHTML = resp.registros
+                    .map(
+                        (r) => `
+                    <div class="reg-row">
+                        <span class="reg-dh">${esc(r.data)} ${esc(r.hora)}</span>
+                        <span class="reg-disc">${esc(r.disciplina || "—")}</span>
+                        ${
+                            r.status_vinculo === "pendente_revisao"
+                                ? '<span class="badge badge-pendente">a confirmar</span>'
+                                : '<span class="badge badge-ok">ok</span>'
+                        }
+                    </div>
+                `,
+                    )
+                    .join("");
+            }
+
+            // =====================================================================
+            // INIT
+            // =====================================================================
+            document.addEventListener("DOMContentLoaded", function () {
+                const params = new URLSearchParams(location.search);
+                _codigoQR = params.get("c") || "";
+
+                if (!_codigoQR) {
+                    mostrarTela("tela-sem-codigo");
+                    return;
+                }
+
+                if (!BACKEND_URL || BACKEND_URL === "__BACKEND_URL__") {
+                    document.getElementById("login-erro").textContent =
+                        "Erro ao carregar configuração do servidor.";
+                    document.getElementById("login-erro").style.display =
+                        "block";
+                    mostrarTela("tela-login");
+                    return;
+                }
+                if (
+                    !GOOGLE_CLIENT_ID ||
+                    GOOGLE_CLIENT_ID === "__GOOGLE_CLIENT_ID__"
+                ) {
+                    document.getElementById("login-erro").textContent =
+                        "Erro ao carregar configuração do login Google.";
+                    document.getElementById("login-erro").style.display =
+                        "block";
+                    mostrarTela("tela-login");
+                    return;
+                }
+
+                mostrarTela("tela-login");
+                initGoogleSignIn();
+            });
+        </script>
+    </body>
+</html>
