@@ -294,8 +294,8 @@
             <div class="box centro">
                 <h1>PRESENÇA</h1>
                 <div class="aviso-caixa erro">
-                    Este link não contém um código de presença válido. Peça
-                    ao professor um novo QR Code e escaneie novamente.
+                    Este link não contém um código de presença válido. Peça ao
+                    professor um novo QR Code e escaneie novamente.
                 </div>
             </div>
         </div>
@@ -339,8 +339,8 @@
                             placeholder="Deixe em branco se já registrou antes"
                         />
                         <div class="dica">
-                            Só é necessário informar a matrícula no seu
-                            primeiro registro com esta conta Google.
+                            Só é necessário informar a matrícula no seu primeiro
+                            registro com esta conta Google.
                         </div>
                     </div>
                     <div
@@ -374,8 +374,9 @@
                 </div>
                 <div class="card">
                     <h2>
-                        Seus últimos registros
-                        (<span id="contador-registros">0</span>)
+                        Seus últimos registros (<span id="contador-registros"
+                            >0</span
+                        >)
                     </h2>
                     <div class="lista-registros" id="lista-registros">
                         <p class="sub">Carregando…</p>
@@ -633,7 +634,18 @@
                 const badge = document.getElementById("resultado-badge");
                 const detalhe = document.getElementById("resultado-detalhe");
 
-                if (resp.status_vinculo === "pendente_revisao") {
+                if (resp.status_vinculo === "suspenso") {
+                    icone.textContent = "⛔";
+                    titulo.textContent =
+                        "SEU REGISTRO ESTÁ SUSPENSO. PROCURE O PROFESSOR IMEDIATAMENTE PARA REGULARIZAR.";
+                    titulo.style.color = "var(--danger)";
+                    badge.innerHTML =
+                        '<span class="badge badge-erro">registro suspenso</span>';
+                    detalhe.textContent = resp.disciplina
+                        ? `Disciplina: ${resp.disciplina} — ${resp.data} ${resp.hora}`
+                        : `${resp.data} ${resp.hora}`;
+                } else if (resp.status_vinculo === "pendente_revisao") {
+                    titulo.style.color = "";
                     icone.textContent = "⏳";
                     titulo.textContent = "Presença registrada";
                     badge.innerHTML =
@@ -641,6 +653,7 @@
                     detalhe.textContent =
                         "Seu e-mail ainda não pôde ser vinculado automaticamente à sua matrícula.";
                 } else {
+                    titulo.style.color = "";
                     icone.textContent = "✅";
                     titulo.textContent = "Presença registrada";
                     badge.innerHTML =
@@ -676,9 +689,11 @@
                         <span class="reg-dh">${esc(r.data)} ${esc(r.hora)}</span>
                         <span class="reg-disc">${esc(r.disciplina || "—")}</span>
                         ${
-                            r.status_vinculo === "pendente_revisao"
-                                ? '<span class="badge badge-pendente">a confirmar</span>'
-                                : '<span class="badge badge-ok">ok</span>'
+                            r.status_vinculo === "suspenso"
+                                ? '<span class="badge badge-erro">suspenso</span>'
+                                : r.status_vinculo === "pendente_revisao"
+                                  ? '<span class="badge badge-pendente">a confirmar</span>'
+                                  : '<span class="badge badge-ok">ok</span>'
                         }
                     </div>
                 `,
