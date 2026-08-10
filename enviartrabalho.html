@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Enviar trabalho</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+:root{
+  --paper:#F1EEE5;
+  --panel:#FBFAF6;
+  --graphite:#1E2124;
+  --graphite-2:#2A2E32;
+  --ink:#24221D;
+  --muted:#726C5E;
+  --rail:#CBC3AF;
+  --rail-dim:#DEDACB;
+  --teal:#2E7D6B;
+  --teal-bg:#E4EFEA;
+  --amber:#C9821F;
+  --amber-bg:#F6EAD4;
+  --red:#B33F2E;
+  --red-bg:#F5E3DE;
+  --line:#D8D2C0;
+  --shadow: 0 1px 2px rgba(30,28,20,.06), 0 8px 24px rgba(30,28,20,.05);
+  --radius: 10px;
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-body: 'IBM Plex Sans', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--font-body);
+  font-size:14.5px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{background:var(--teal);color:#fff;}
+a{color:var(--teal);}
+button{font-family:var(--font-body);}
+h1,h2,h3{font-family:var(--font-display); margin:0; letter-spacing:-0.01em;}
+code, .mono{font-family:var(--font-mono);}
+
+.topbar{
+  background:var(--graphite);
+  color:#EFEBDD;
+  padding:18px 24px;
+  display:flex;
+  align-items:center;
+  gap:14px;
+  border-bottom:3px solid var(--teal);
+}
+.topbar .mark{width:10px;height:10px;border-radius:50%;background:var(--teal);flex-shrink:0;}
+.topbar h1{font-size:17px;color:#fff;font-weight:600;}
+.topbar .sub{font-size:12px;color:#B9B4A2;margin-top:2px;}
+.topbar .spacer{flex:1;}
+.topbar .userchip{display:flex; align-items:center; gap:8px; font-size:12.5px; color:#DCD8C8;}
+.topbar .userchip img{width:24px;height:24px;border-radius:50%;}
+
+.wrap{max-width:660px; margin:0 auto; padding:28px 18px 80px;}
+
+.panel{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:24px 26px;
+  box-shadow:var(--shadow);
+  margin-bottom:20px;
+}
+.panel h2{font-size:19px; margin-bottom:4px;}
+.panel .desc{color:var(--muted); font-size:13.5px; margin-bottom:16px;}
+.field{margin-bottom:16px;}
+.field label{display:block; font-size:12.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin-bottom:6px;}
+.field .hint{font-size:12px; color:var(--muted); margin-top:5px;}
+
+textarea, input[type=text], input[type=password], input[type=number], select{
+  width:100%;
+  border:1px solid var(--line);
+  background:#fff;
+  border-radius:7px;
+  padding:10px 12px;
+  font-family:var(--font-body);
+  font-size:14px;
+  color:var(--ink);
+}
+textarea{min-height:120px; resize:vertical; font-family:var(--font-mono); font-size:12.5px; line-height:1.6;}
+textarea:focus, input:focus, select:focus{outline:2px solid var(--teal); outline-offset:1px; border-color:var(--teal);}
+input[type=file]{font-size:13px;}
+
+.btn{
+  font-family:var(--font-body);
+  font-weight:600;
+  font-size:13.5px;
+  padding:10px 16px;
+  border-radius:8px;
+  border:none;
+  background:var(--graphite);
+  color:#fff;
+  cursor:pointer;
+  transition:background .15s;
+}
+.btn:hover{background:var(--graphite-2);}
+.btn:disabled{opacity:.45; cursor:not-allowed;}
+.btn.secondary{background:#fff; color:var(--ink); border:1px solid var(--line);}
+.btn.secondary:hover{background:var(--rail-dim);}
+.btn.teal{background:var(--teal);}
+.btn.teal:hover{background:#276b5c;}
+.btn.danger{background:#fff; color:var(--red); border:1px solid var(--red);}
+.btn.small{padding:6px 11px; font-size:12.5px;}
+.btn.full{width:100%; text-align:center;}
+.btn-row{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+
+.status-line{font-size:13px; color:var(--muted); margin-top:10px; display:flex; align-items:center; gap:8px;}
+.status-line.err{color:var(--red);}
+.status-line.ok{color:var(--teal);}
+
+.banner{border-radius:9px; padding:12px 16px; font-size:13.5px; margin-bottom:16px; border:1px solid;}
+.banner.info{background:var(--teal-bg); border-color:#B9D6CB; color:#1E5747;}
+.banner.warn{background:var(--amber-bg); border-color:#E3C68A; color:#7A5313;}
+.banner.err{background:var(--red-bg); border-color:#DDA79A; color:#7A2E1F;}
+
+.crit-row{border:1px solid var(--line); border-radius:9px; padding:14px; margin-bottom:10px; background:#fff;}
+.crit-row .top{display:flex; justify-content:space-between; gap:12px; align-items:flex-start;}
+.crit-row .crit-text{font-weight:600; font-size:14px;}
+.crit-row .cat{font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted);}
+.crit-row .peso{font-family:var(--font-mono); font-size:12px; color:var(--muted); white-space:nowrap;}
+
+.status-pill{font-size:11px; font-weight:700; text-transform:uppercase; padding:3px 9px; border-radius:20px; letter-spacing:.03em;}
+.status-pill.atendido{background:var(--teal-bg); color:var(--teal);}
+.status-pill.parcial{background:var(--amber-bg); color:var(--amber);}
+.status-pill.nao_atendido{background:var(--red-bg); color:var(--red);}
+.evidence-box{
+  background:var(--paper); border-left:3px solid var(--rail); padding:8px 12px; margin-top:8px;
+  font-family:var(--font-mono); font-size:12px; color:var(--ink); white-space:pre-wrap;
+}
+.grade-pill{display:inline-block; font-family:var(--font-mono); font-weight:700; font-size:20px; padding:4px 14px; border-radius:8px;}
+.grade-pill.high{background:var(--teal-bg); color:var(--teal);}
+.grade-pill.mid{background:var(--amber-bg); color:var(--amber);}
+.grade-pill.low{background:var(--red-bg); color:var(--red);}
+
+.upload-slot{border:1.5px dashed var(--rail); border-radius:9px; padding:14px 16px; margin-bottom:12px; background:#fff;}
+.upload-slot .slot-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
+.upload-slot .slot-title{font-weight:600; font-size:13.5px;}
+.upload-slot .slot-rule{font-size:11.5px; color:var(--muted); font-family:var(--font-mono);}
+.upload-slot.filled{border-style:solid; border-color:var(--teal);}
+.upload-slot.error{border-style:solid; border-color:var(--red);}
+.file-chip{
+  display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line); border-radius:20px;
+  padding:4px 10px 4px 12px; font-size:12.5px; margin:3px 6px 0 0; background:var(--paper);
+}
+.file-chip button{background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;line-height:1;padding:0;}
+.file-chip button:hover{color:var(--red);}
+
+.progress-item{display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid var(--line); font-size:13px;}
+.progress-item:last-child{border-bottom:none;}
+.progress-item .icon{width:16px; text-align:center; flex-shrink:0;}
+.progress-item.done .icon{color:var(--teal);}
+.progress-item.error .icon{color:var(--red);}
+.progress-item.pending .icon{color:var(--muted);}
+
+.spinner{display:inline-block; width:14px; height:14px; border:2px solid var(--rail); border-top-color:var(--teal); border-radius:50%; animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+.countdown{font-family:var(--font-mono); font-size:13px; color:var(--muted);}
+.countdown.urgent{color:var(--red); font-weight:600;}
+
+footer.note{color:var(--muted); font-size:12px; margin-top:26px;}
+.center-msg{text-align:center; padding:40px 20px;}
+.center-msg .big-icon{font-size:40px; margin-bottom:12px;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="mark"></span>
+  <div>
+    <h1>Enviar trabalho</h1>
+    <div class="sub" id="topbarSub">carregando...</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="userchip" id="userChip" style="display:none;"></div>
+</div>
+
+<div class="wrap" id="root"></div>
+
+<script>
+/* ==========================================================================
+   BOOTSTRAP — mesmo padrão de duas camadas usado pelo Aplicacao.html:
+   SERVIDOR_URL é estável (quase nunca muda); BACKEND_URL é buscado nele em
+   runtime, porque a URL do web app do Code.gs muda a cada novo deploy.
+   ========================================================================== */
+const SERVIDOR_URL = "https://script.google.com/macros/s/AKfycbxw3n6nD31nESLeT6AKkh4_flFb5qc5YGSdWoioqqxcv7SKidBurDHRIyVVZYomV8OP/exec";
+const GOOGLE_CLIENT_ID = "534571821691-7gvp1ubpltfg86fo6ouetf5ci209ah4h.apps.googleusercontent.com";
+let BACKEND_URL = "";
+
+async function carregarConfig(){
+  try{
+    const r = await fetch(`${SERVIDOR_URL}?ts=${Date.now()}`, { cache: "no-store" });
+    const cfg = await r.json();
+    BACKEND_URL = cfg.backend_url || "";
+  }catch(e){
+    BACKEND_URL = "";
+  }
+}
+
+// GET com querystring (nunca dispara preflight de CORS) pra ações leves;
+// POST com corpo em texto puro (sem header Content-Type customizado — o
+// fetch usa text/plain por padrão, o que também não dispara preflight) pra
+// payloads grandes (dossiê extraído, base64 de arquivo). O doPost do
+// Code.gs já faz JSON.parse do corpo e mescla em e.parameter de qualquer
+// forma, então os dois caminhos chegam iguais no servidor.
+async function chamarBackend(action, params, usarPost){
+  if (!BACKEND_URL) await carregarConfig();
+  if (!BACKEND_URL) return { ok:false, erro:"BACKEND_INDISPONIVEL" };
+
+  const corpo = { action, ...params };
+  let res;
+  try{
+    if (usarPost){
+      res = await fetch(BACKEND_URL, { method:"POST", body: JSON.stringify(corpo), cache:"no-store" });
+    } else {
+      const qp = new URLSearchParams();
+      Object.entries(corpo).forEach(([k,v]) => {
+        if (v === undefined || v === null) return;
+        qp.set(k, typeof v === "object" ? JSON.stringify(v) : String(v));
+      });
+      res = await fetch(`${BACKEND_URL}?${qp}`, { method:"GET", cache:"no-store" });
+    }
+  }catch(e){
+    return { ok:false, erro:"FALHA_DE_REDE", detalhe: e.message };
+  }
+
+  const texto = await res.text();
+  try{ return JSON.parse(texto); }
+  catch(e){ return { ok:false, erro:"RESPOSTA_INVALIDA_DO_SERVIDOR", detalhe: texto.slice(0,200) }; }
+}
+
+/* ==========================================================================
+   PARSERS DE ARQUIVO — copiados verbatim do Avaliador.html (mesmo motor de
+   extração de texto), pra montar o mesmo tipo de dossiê que o servidor
+   espera em avaliarTentativaTrabalho. Só o texto extraído trafega pro
+   servidor — os arquivos originais só são enviados depois, na confirmação
+   de entrega definitiva.
+   ========================================================================== */
+function dChild(el, tag){
+  if (!el) return null;
+  return Array.from(el.children).find(c => c.tagName === tag) || null;
+}
+function dText(el, tag, fallback=''){
+  const c = dChild(el, tag);
+  return c ? c.textContent.trim() : fallback;
+}
+
+function parseSMBP(xmlText, fileName){
+  const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
+  const perr = doc.querySelector('parsererror');
+  if (perr) return { ok:false, error: 'XML do .smbp inválido ou corrompido (' + fileName + ')', summaryText:'' };
+
+  const root = doc.documentElement;
+  const projectName = dText(root, 'Name') || fileName;
+  const swConfig = dChild(root, 'SoftwareConfiguration');
+  const pousRoot = swConfig ? dChild(swConfig, 'Pous') : null;
+
+  const ladderPOUs = [];
+  let grafcet = null;
+
+  if (pousRoot){
+    Array.from(pousRoot.children).forEach(child => {
+      if (child.tagName === 'ProgramOrganizationUnits'){
+        const name = dText(child, 'Name');
+        const rungs = child.querySelectorAll('RungEntity').length;
+        const typeCounts = {};
+        child.querySelectorAll('ElementType').forEach(el => {
+          const t = el.textContent.trim();
+          typeCounts[t] = (typeCounts[t]||0) + 1;
+        });
+        ladderPOUs.push({ name, rungs, typeCounts });
+      } else if (child.tagName === 'GrafcetPou'){
+        const steps = Array.from(child.querySelectorAll('GrafcetNodeStep')).map(s => {
+          const sp = dChild(s, 'StepPou');
+          return {
+            stepNumber: dText(sp, 'StepNumber'),
+            name: dText(sp, 'Name'),
+            initial: dText(s, 'IsInitialStep') === 'true',
+            rungsInStep: sp ? sp.querySelectorAll('RungEntity').length : 0
+          };
+        }).sort((a,b) => Number(a.stepNumber) - Number(b.stepNumber));
+        const transitions = child.querySelectorAll('GrafcetTransition').length;
+        grafcet = { steps, transitions };
+      }
+    });
+  }
+
+  const symbols = Array.from(doc.querySelectorAll('CustomSymbols > CustomSymbol')).map(cs => ({
+    address: dText(cs, 'Address'), symbol: dText(cs, 'Symbol')
+  }));
+
+  const watchLists = Array.from(doc.querySelectorAll('WatchLists > WatchListEntity')).map(wl => {
+    const items = Array.from(wl.querySelectorAll('WatchListItemEntity')).map(it => ({
+      address: dText(it, 'Address'), traced: dText(it, 'IsTraced') === 'true'
+    }));
+    return { name: dText(wl, 'Name'), items, tracedCount: items.filter(i=>i.traced).length };
+  });
+
+  const digitalInputs = doc.querySelectorAll('DigitalInputs > DiscretInput').length;
+  const digitalOutputs = doc.querySelectorAll('DigitalOutputs > DiscretOutput').length;
+  const analogInputs = Array.from(doc.querySelectorAll('AnalogInputs > AnalogIO')).map(a => ({
+    address: dText(a,'Address'), min: dText(a,'Minimum'), max: dText(a,'Maximum')
+  }));
+  const analogOutputs = Array.from(doc.querySelectorAll('AnalogOutputs > AnalogIO')).map(a => ({
+    address: dText(a,'Address'), min: dText(a,'Minimum'), max: dText(a,'Maximum')
+  }));
+
+  const allTypeCounts = {};
+  doc.querySelectorAll('ElementType').forEach(el => {
+    const t = el.textContent.trim();
+    allTypeCounts[t] = (allTypeCounts[t]||0) + 1;
+  });
+
+  // ----- Monta texto-resumo (para IA e para exibição) -----
+  const lines = [];
+  lines.push(`Arquivo: ${fileName}  |  Projeto: ${projectName}`);
+  lines.push('');
+  lines.push('POUs LADDER:');
+  if (ladderPOUs.length === 0) lines.push('  (nenhum POU ladder encontrado)');
+  ladderPOUs.forEach(p => {
+    const types = Object.entries(p.typeCounts).map(([k,v]) => `${k}:${v}`).join(', ');
+    lines.push(`  - "${p.name}" — ${p.rungs} rungs (instruções: ${types || 'nenhuma'})`);
+  });
+  lines.push('');
+  lines.push('GRAFCET:');
+  if (grafcet){
+    lines.push(`  ${grafcet.steps.length} etapas, ${grafcet.transitions} transições`);
+    grafcet.steps.forEach(s => lines.push(`  - Etapa ${s.stepNumber}${s.initial?' (inicial)':''}: "${s.name}" (${s.rungsInStep} rung(s) de ação)`));
+  } else {
+    lines.push('  (nenhum Grafcet encontrado no projeto)');
+  }
+  lines.push('');
+  lines.push(`SÍMBOLOS CUSTOMIZADOS (${symbols.length}):`);
+  symbols.forEach(s => lines.push(`  - ${s.symbol} = ${s.address}`));
+  lines.push('');
+  lines.push('TABELAS DE ANIMAÇÃO / GRÁFICO DE TEMPO (WatchLists):');
+  if (watchLists.length === 0){
+    lines.push('  (nenhuma tabela de animação encontrada — logo, nenhum gráfico de tempo configurado)');
+  }
+  watchLists.forEach(wl => {
+    lines.push(`  - "${wl.name}": ${wl.items.length} variável(is) monitorada(s), ${wl.tracedCount} com traço/gráfico de tempo habilitado (IsTraced=true)`);
+    lines.push(`      endereços: ${wl.items.map(i => i.address + (i.traced?'[TRAÇO ATIVO]':'')).join(', ')}`);
+  });
+  lines.push('');
+  lines.push(`E/S DIGITAIS CONFIGURADAS: ${digitalInputs} entradas, ${digitalOutputs} saídas`);
+  lines.push(`E/S ANALÓGICAS: ${analogInputs.length} entrada(s) [${analogInputs.map(a=>`${a.address}(${a.min}-${a.max})`).join(', ')}], ${analogOutputs.length} saída(s) [${analogOutputs.map(a=>`${a.address}(${a.min}-${a.max})`).join(', ')}]`);
+  lines.push('');
+  lines.push('CONTAGEM TOTAL DE INSTRUÇÕES LADDER POR TIPO: ' + Object.entries(allTypeCounts).map(([k,v])=>`${k}:${v}`).join(', '));
+
+  return {
+    ok:true,
+    summaryText: lines.join('\n'),
+    raw: { projectName, ladderPOUs, grafcet, symbols, watchLists, digitalInputs, digitalOutputs, analogInputs, analogOutputs }
+  };
+}
+
+/* ==========================================================================
+   PARSER — SCADA (Ignition Perspective, .zip)
+   ========================================================================== */
+function walkPerspectiveComponent(node, acc){
+  if (!node || typeof node !== 'object') return;
+  if (node.type){
+    acc.typeCounts[node.type] = (acc.typeCounts[node.type]||0) + 1;
+    const name = node.meta?.name || '';
+    if (/alarm/i.test(node.type) || /alarme/i.test(name)) acc.alarmComponents.push(name || node.type);
+    if (/chart|trend|power/i.test(node.type) || /histor/i.test(name)) acc.trendComponents.push(name || node.type);
+  }
+  // bindings (tag paths)
+  const propConfig = node.propConfig;
+  if (propConfig && typeof propConfig === 'object'){
+    Object.values(propConfig).forEach(pc => {
+      const tp = pc?.binding?.config?.tagPath;
+      if (tp) acc.tagBindings.add(tp);
+    });
+  }
+  // scripts em eventos
+  if (node.events?.dom){
+    Object.entries(node.events.dom).forEach(([evtName, evt]) => {
+      const script = evt?.config?.script;
+      if (script) acc.scripts.push({ component: node.meta?.name || node.type || '?', event: evtName, script: script.trim().slice(0,300) });
+    });
+  }
+  if (Array.isArray(node.children)) node.children.forEach(c => walkPerspectiveComponent(c, acc));
+}
+
+async function parsePerspectiveZip(arrayBuffer, fileName){
+  let zip;
+  try{
+    zip = await JSZip.loadAsync(arrayBuffer);
+  }catch(e){
+    return { ok:false, error:'Não consegui abrir "'+fileName+'" como .zip: ' + e.message, summaryText:'' };
+  }
+
+  const viewFiles = Object.keys(zip.files).filter(p => /\/views\/[^/]+\/view\.json$/.test(p) && !p.includes('__MACOSX'));
+  if (viewFiles.length === 0){
+    return { ok:false, error:'"'+fileName+'" não parece um projeto Ignition Perspective (não encontrei views/*/view.json).', summaryText:'' };
+  }
+
+  const views = [];
+  for (const path of viewFiles){
+    const viewName = path.match(/\/views\/([^/]+)\/view\.json$/)[1];
+    let json;
+    try{ json = JSON.parse(await zip.files[path].async('text')); }catch(e){ continue; }
+    const acc = { typeCounts:{}, alarmComponents:[], trendComponents:[], tagBindings:new Set(), scripts:[] };
+    walkPerspectiveComponent(json.root, acc);
+    views.push({ name: viewName, ...acc, tagBindings: Array.from(acc.tagBindings) });
+  }
+
+  // page-config (navegação)
+  let pages = [];
+  const configPath = Object.keys(zip.files).find(p => /page-config\/config\.json$/.test(p) && !p.includes('__MACOSX'));
+  if (configPath){
+    try{
+      const cfg = JSON.parse(await zip.files[configPath].async('text'));
+      pages = Object.entries(cfg.pages || {}).map(([route, p]) => `${route} → ${p.viewPath}`);
+    }catch(e){}
+  }
+
+  const lines = [];
+  lines.push(`Arquivo: ${fileName}  |  ${views.length} tela(s)/view(s) encontrada(s)`);
+  lines.push('');
+  if (pages.length){
+    lines.push('NAVEGAÇÃO (páginas configuradas):');
+    pages.forEach(p => lines.push('  - ' + p));
+    lines.push('');
+  }
+  views.forEach(v => {
+    lines.push(`VIEW "${v.name}":`);
+    lines.push('  componentes: ' + (Object.entries(v.typeCounts).map(([k,c])=>`${k}(${c})`).join(', ') || 'nenhum'));
+    if (v.tagBindings.length) lines.push('  tags vinculadas: ' + v.tagBindings.join(', '));
+    if (v.alarmComponents.length) lines.push('  ⚑ componente(s) de alarme: ' + v.alarmComponents.join(', '));
+    if (v.trendComponents.length) lines.push('  ⚑ componente(s) de tendência/histórico (gráfico de tempo): ' + v.trendComponents.join(', '));
+    if (v.scripts.length){
+      lines.push('  scripts de evento:');
+      v.scripts.forEach(s => lines.push(`    - [${s.component}] ${s.event}: ${s.script.replace(/\s+/g,' ')}`));
+    }
+    lines.push('');
+  });
+
+  return { ok:true, summaryText: lines.join('\n'), raw:{ views, pages } };
+}
+
+/* ==========================================================================
+   PARSER — RELATÓRIO EM PDF
+   ========================================================================== */
+async function parseReportPDF(arrayBuffer, fileName, wantImages){
+  let pdf;
+  try{
+    pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+  }catch(e){
+    return { ok:false, error:'Não consegui abrir "'+fileName+'" como PDF: ' + e.message, summaryText:'', pageImages:[] };
+  }
+  const pageTexts = [];
+  const pageImages = [];
+  for (let i=1; i<=pdf.numPages; i++){
+    const page = await pdf.getPage(i);
+    const tc = await page.getTextContent();
+    pageTexts.push(tc.items.map(it => it.str).join(' '));
+    if (wantImages){
+      try{
+        const viewport = page.getViewport({scale: 1.15});
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width; canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d');
+        await page.render({canvasContext: ctx, viewport}).promise;
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.65);
+        pageImages.push(dataUrl.split(',')[1]);
+      }catch(e){ /* segue sem imagem dessa página */ }
+    }
+  }
+  const lines = [];
+  lines.push(`Arquivo: ${fileName}  |  ${pdf.numPages} página(s)`);
+  lines.push('');
+  pageTexts.forEach((t, i) => {
+    lines.push(`--- página ${i+1} ---`);
+    lines.push(t.trim() || '(sem texto extraível nesta página — pode ser só imagem/print)');
+    lines.push('');
+  });
+  return { ok:true, summaryText: lines.join('\n'), pageImages, raw:{ pageCount: pdf.numPages, pageTexts } };
+}
+
+/* ==========================================================================
+   AGRUPAMENTO DE ARQUIVOS POR ALUNO + MONTAGEM DO DOSSIÊ
+   ========================================================================== */
+/* ==========================================================================
+   AGRUPAMENTO POR ALUNO — a partir do nome padronizado do arquivo
+   (o Code.gs grava tudo achatado em RESPOSTAS_ARQUIVOS/ano/idProva, com
+   nome no formato: {aluno-normalizado}-{idquestao}-{TIPO}[_n].{ext}
+   ex.: joao-da-silva-q3-CLP.smbp, joao-da-silva-q5-SCADA_2.zip
+   O TIPO é sempre o único segmento em CAIXA ALTA do nome — é essa pista
+   que usamos para separar aluno / idQuestao / tipo, mesmo quando o nome
+   do aluno ou o id da questão têm hífen no meio. )
+   ========================================================================== */
+
+function classifyFile(file){
+  const n = file.name.toLowerCase();
+  if (n.endsWith('.smbp')) return 'clp';
+  if (n.endsWith('.pdf')) return 'relatorio';
+  if (n.endsWith('.qet') || n.endsWith('.qet_project') || /qelectrotech|electrotech|diagrama|esquema/.test(n)) return 'diagrama';
+  if (n.endsWith('.zip')){
+    if (/qelectrotech|electrotech|diagrama|esquema|eletric/.test(n)) return 'diagrama';
+    return 'scada';
+  }
+  return 'outro';
+}
+
+// Monta o dossiê de texto a partir dos arquivos que o aluno anexou nos slots
+// de upload — independente de qual "tipo" (regra) o professor configurou
+// pra cada slot, a extração de conteúdo é sempre pela extensão real do
+// arquivo (só sabemos ler .smbp/.zip-Perspective/.pdf de verdade; outros
+// tipos configuráveis contam pra validação de entrega, mas não entram no
+// dossiê de evidências da IA — ainda não têm parser).
+async function buildDossieSimples(arquivos){
+  const dossie = { clpText:'', scadaText:'', reportText:'', diagramaText:'' };
+  const avisos = [];
+  for (const file of arquivos){
+    const kind = classifyFile(file);
+    try{
+      if (kind === 'clp'){
+        const texto = await file.text();
+        const res = parseSMBP(texto, file.name);
+        if (res.ok) dossie.clpText += (dossie.clpText?'\n\n':'') + res.summaryText;
+        else avisos.push(`CLP (${file.name}): ${res.error}`);
+      } else if (kind === 'scada'){
+        const buf = await file.arrayBuffer();
+        const res = await parsePerspectiveZip(buf, file.name);
+        if (res.ok) dossie.scadaText += (dossie.scadaText?'\n\n':'') + res.summaryText;
+        else avisos.push(`SCADA (${file.name}): ${res.error}`);
+      } else if (kind === 'relatorio'){
+        const buf = await file.arrayBuffer();
+        const res = await parseReportPDF(buf, file.name, false);
+        if (res.ok) dossie.reportText += (dossie.reportText?'\n\n':'') + res.summaryText;
+        else avisos.push(`Relatório (${file.name}): ${res.error}`);
+      } else if (kind === 'diagrama'){
+        dossie.diagramaText += (dossie.diagramaText?'\n\n':'') + `Arquivo de diagrama entregue: ${file.name} (leitura de conteúdo não disponível para este tipo).`;
+      }
+    }catch(e){
+      avisos.push(`Erro ao processar ${file.name}: ${e.message}`);
+    }
+  }
+  return { dossie, avisos };
+}
+
+function escapeHtml(s){
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function h(html){
+  const t = document.createElement('template');
+  t.innerHTML = html.trim();
+  return t.content.firstElementChild;
+}
+function $(sel, root){ return (root||document).querySelector(sel); }
+
+/* ==========================================================================
+   ESTADO GLOBAL DA APLICAÇÃO
+   ========================================================================== */
+const state = {
+  tela: 'login',           // login | precisa_matricula | trabalho | enviando | avaliando | resultado | confirmando | confirmado | erro
+  idToken: null,
+  perfilGoogle: null,      // {name, email, picture}
+  matriculaDigitada: '',
+  idTrabalho: '',
+  trabalho: null,          // resultado de getTrabalho
+  arquivosPorTipo: {},     // { [tipo]: File[] }
+  tentativa: null,         // {token, numero_tentativa, modo, forcar_confirmacao, motivo_forcar}
+  resultadoIA: null,       // {avaliacoes, notaFinal, pontosFortesGeral, pontosAMelhorarGeral}
+  avisosDossie: [],
+  manifesto: null,
+  progressoUpload: [],     // [{filename, tipo, status:'pendente'|'enviando'|'ok'|'erro'}]
+  erroGeral: null,
+};
+
+function render(){
+  const root = $('#root');
+  root.innerHTML = '';
+  const map = {
+    login: renderLogin,
+    precisa_matricula: renderPrecisaMatricula,
+    carregando: () => renderCentro('⏳', 'Carregando...'),
+    trabalho: renderTrabalho,
+    avaliando: () => renderCentro('🤖', 'A IA está avaliando sua entrega...', true),
+    resultado: renderResultado,
+    confirmando: renderConfirmando,
+    confirmado: renderConfirmado,
+    erro: renderErro,
+  };
+  const fn = map[state.tela] || renderErro;
+  root.appendChild(fn());
+}
+
+function renderCentro(icone, texto, comSpinner){
+  return h(`
+    <div class="panel center-msg">
+      <div class="big-icon">${icone}</div>
+      <div>${escapeHtml(texto)}</div>
+      ${comSpinner ? '<div style="margin-top:14px;"><span class="spinner"></span></div>' : ''}
+    </div>
+  `);
+}
+
+function renderErro(){
+  const msg = MENSAGENS_ERRO[state.erroGeral?.erro] || state.erroGeral?.erro || 'Algo deu errado.';
+  return h(`
+    <div class="panel center-msg">
+      <div class="big-icon">⚠️</div>
+      <h2 style="margin-bottom:10px;">Não foi possível continuar</h2>
+      <div class="banner err" style="text-align:left;">${escapeHtml(msg)}</div>
+      <div class="btn-row" style="justify-content:center; margin-top:16px;">
+        <button class="btn secondary" id="btnVoltarInicio">← Voltar ao início</button>
+      </div>
+    </div>
+  `);
+}
+
+const MENSAGENS_ERRO = {
+  PRECISA_MATRICULA: 'Não reconhecemos seu e-mail automaticamente. Informe sua matrícula.',
+  MATRICULA_NAO_ENCONTRADA: 'Não encontramos essa matrícula no sistema. Confira o número ou fale com o professor.',
+  TRABALHO_NAO_ENCONTRADO: 'Esse código de trabalho não existe. Confira o código no Classroom.',
+  TRABALHO_INATIVO: 'Este trabalho não está mais aceitando envios no momento.',
+  ALUNO_NAO_MATRICULADO_NESTA_DISCIPLINA: 'Sua matrícula não está vinculada a esta disciplina.',
+  ENTREGA_JA_CONFIRMADA: 'Sua entrega para este trabalho já foi confirmada — não é possível enviar de novo.',
+  FORA_DO_PRAZO_E_TOLERANCIA: 'O prazo deste trabalho (e o período de tolerância) já passou. Fale com o professor se precisar de uma exceção.',
+  LIMITE_TENTATIVAS_ATINGIDO: 'Você já usou todas as suas tentativas para este trabalho.',
+  REGRAS_ARQUIVO_NAO_ATENDIDAS: 'Os arquivos enviados não atendem às regras deste trabalho.',
+  BACKEND_INDISPONIVEL: 'Não foi possível conectar ao servidor. Verifique sua internet e tente de novo.',
+  FALHA_DE_REDE: 'Falha de conexão. Verifique sua internet e tente de novo.',
+};
+
+document.addEventListener('click', (e) => {
+  if (e.target && e.target.id === 'btnVoltarInicio'){
+    state.tela = 'login';
+    state.erroGeral = null;
+    render();
+  }
+});
+
+/* ==========================================================================
+   LOGIN (Google Sign-In)
+   ========================================================================== */
+function decodeJwtPayload(token){
+  try{
+    const base64 = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    const json = decodeURIComponent(atob(base64).split('').map(c => '%' + c.charCodeAt(0).toString(16).padStart(2,'0')).join(''));
+    return JSON.parse(json);
+  }catch(e){ return {}; }
+}
+
+function atualizarUserChip(){
+  const chip = $('#userChip');
+  if (!chip || !state.perfilGoogle) return;
+  chip.style.display = 'flex';
+  chip.innerHTML = `${state.perfilGoogle.picture ? `<img src="${state.perfilGoogle.picture}">` : ''}<span>${escapeHtml(state.perfilGoogle.name || state.perfilGoogle.email || '')}</span>`;
+}
+
+function initGoogleSignIn(){
+  if (!window.google || !google.accounts || !google.accounts.id){
+    setTimeout(initGoogleSignIn, 200);
+    return;
+  }
+  google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: onGoogleCredential });
+  const slot = $('#googleBtnSlot');
+  if (slot){
+    google.accounts.id.renderButton(slot, { theme:'filled_black', size:'large', text:'signin_with', shape:'pill' });
+  }
+}
+
+async function onGoogleCredential(resp){
+  state.idToken = resp.credential;
+  const payload = decodeJwtPayload(resp.credential);
+  state.perfilGoogle = { name: payload.name, email: payload.email, picture: payload.picture };
+  atualizarUserChip();
+
+  if (!state.idTrabalho){
+    const statusEl = $('#loginStatus');
+    if (statusEl){ statusEl.textContent = 'Informe o código do trabalho antes de continuar.'; statusEl.className = 'status-line err'; }
+    return;
+  }
+  await carregarTrabalho();
+}
+
+function renderLogin(){
+  const panel = h(`
+    <div class="panel">
+      <h2>Enviar trabalho</h2>
+      <div class="desc">Entre com sua conta Google institucional e informe o código do trabalho (você encontra esse código no Classroom).</div>
+      <div class="field">
+        <label>Código do trabalho</label>
+        <input type="text" id="idTrabalhoInput" placeholder="ex.: AI-AP1" value="${escapeHtml(state.idTrabalho)}" style="text-transform:uppercase;">
+      </div>
+      <div class="field">
+        <label>Login</label>
+        <div id="googleBtnSlot"></div>
+      </div>
+      <div class="status-line" id="loginStatus"></div>
+    </div>
+  `);
+  panel.querySelector('#idTrabalhoInput').addEventListener('input', (e) => {
+    state.idTrabalho = e.target.value.trim().toUpperCase();
+  });
+  setTimeout(initGoogleSignIn, 0);
+  return panel;
+}
+
+function renderPrecisaMatricula(){
+  const panel = h(`
+    <div class="panel">
+      <h2>Confirme sua matrícula</h2>
+      <div class="desc">Não conseguimos identificar automaticamente sua matrícula pelo seu e-mail. Digite sua matrícula pra continuar.</div>
+      <div class="field">
+        <label>Matrícula</label>
+        <input type="text" id="matriculaInput" placeholder="sua matrícula">
+      </div>
+      <div class="status-line" id="matriculaStatus"></div>
+      <div class="btn-row">
+        <button class="btn teal" id="btnConfirmarMatricula">Continuar</button>
+      </div>
+    </div>
+  `);
+  panel.querySelector('#btnConfirmarMatricula').addEventListener('click', async () => {
+    const v = panel.querySelector('#matriculaInput').value.trim();
+    if (!v) return;
+    state.matriculaDigitada = v;
+    await carregarTrabalho();
+  });
+  return panel;
+}
+
+async function carregarTrabalho(){
+  state.tela = 'carregando';
+  render();
+  const r = await chamarBackend('getTrabalho', {
+    id_trabalho: state.idTrabalho, id_token: state.idToken,
+    matricula_selecionada: state.matriculaDigitada || undefined,
+  });
+  if (!r.ok){
+    if (r.erro === 'PRECISA_MATRICULA'){ state.tela = 'precisa_matricula'; render(); return; }
+    state.erroGeral = r; state.tela = 'erro'; render(); return;
+  }
+  state.trabalho = r;
+  state.tela = 'trabalho';
+  render();
+}
+
+/* ==========================================================================
+   TELA DO TRABALHO — enunciado, critérios, upload por tipo
+   ========================================================================== */
+function renderTrabalho(){
+  const t = state.trabalho;
+
+  if (t.ja_confirmado){
+    return h(`
+      <div class="panel center-msg">
+        <div class="big-icon">✅</div>
+        <h2>Entrega já confirmada</h2>
+        <div class="desc">Você confirmou sua entrega definitiva para <strong>${escapeHtml(t.titulo || state.idTrabalho)}</strong> em ${escapeHtml(t.confirmado_em || '')}. Não é possível enviar de novo. Se precisar reenviar por algum motivo, fale com o professor.</div>
+      </div>
+    `);
+  }
+
+  const prazoTxt = t.prazo_data ? `${t.prazo_data.split('-').reverse().join('/')} às ${t.prazo_hora || '23:59'}` : 'sem prazo definido';
+  const tentativasRestantes = Math.max(0, t.tentativas_limite - t.tentativas_usadas);
+
+  const panel = h(`
+    <div>
+      ${t.modo_prazo === 'tolerancia' ? `
+        <div class="banner warn">⏰ O prazo oficial já passou, mas você ainda está no período de tolerância. <strong>Este envio, se feito agora, já será sua entrega definitiva</strong> — não há nova chance depois dele.</div>
+      ` : ''}
+      <div class="panel">
+        <h2>${escapeHtml(t.titulo || state.idTrabalho)}</h2>
+        <div class="desc">Prazo: ${escapeHtml(prazoTxt)} · Tentativas: ${t.tentativas_usadas}/${t.tentativas_limite} usadas (${tentativasRestantes} restante${tentativasRestantes===1?'':'s'})</div>
+        <div class="field">
+          <label>Enunciado</label>
+          <div style="white-space:pre-wrap; font-size:14px; line-height:1.6;">${escapeHtml(t.enunciado)}</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Critérios de avaliação</h2>
+        <div class="desc">A IA avalia sua entrega contra cada um destes critérios.</div>
+        <div id="critListTrabalho"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Arquivos</h2>
+        <div class="desc">Anexe os arquivos pedidos em cada categoria abaixo.</div>
+        <div id="uploadSlots"></div>
+      </div>
+
+      ${tentativasRestantes <= 0
+        ? `<div class="banner err">Você já usou todas as suas tentativas para este trabalho. Fale com o professor se precisar de uma exceção.</div>`
+        : `<div class="btn-row"><button class="btn teal full" id="btnTestarIA" style="width:100%;">▶ Testar com IA</button></div>`}
+    </div>
+  `);
+
+  const critWrap = panel.querySelector('#critListTrabalho');
+  (t.criterios || []).forEach((c) => {
+    critWrap.appendChild(h(`
+      <div class="crit-row">
+        <div class="top">
+          <div><div class="cat">${escapeHtml(c.categoria)}</div><div class="crit-text">${escapeHtml(c.criterio)}</div></div>
+          <div class="peso">peso ${c.peso}</div>
+        </div>
+      </div>
+    `));
+  });
+
+  const slotsWrap = panel.querySelector('#uploadSlots');
+  (t.regras_arquivos || []).forEach((regra) => slotsWrap.appendChild(renderUploadSlot(regra)));
+
+  const btnTestar = panel.querySelector('#btnTestarIA');
+  if (btnTestar) btnTestar.addEventListener('click', iniciarEEnviarTentativa);
+
+  return panel;
+}
+
+function renderUploadSlot(regra){
+  if (!state.arquivosPorTipo[regra.tipo]) state.arquivosPorTipo[regra.tipo] = [];
+  const max = regra.max != null && regra.max !== '' ? Number(regra.max) : Infinity;
+  const min = Number(regra.min || 0);
+  const accept = (regra.extensoes || []).join(',');
+  const faixa = min === max ? `exatamente ${min}` : `${min}–${max === Infinity ? '∞' : max}`;
+
+  const slot = h(`
+    <div class="upload-slot">
+      <div class="slot-head">
+        <div>
+          <div class="slot-title">${escapeHtml(regra.tipo)}</div>
+          <div class="slot-rule">${escapeHtml((regra.extensoes || []).join(', '))} · ${faixa} arquivo(s)${regra.palavra_chave_nome ? ` · nome deve conter "${escapeHtml(regra.palavra_chave_nome)}"` : ''}</div>
+        </div>
+        <label class="btn secondary small">
+          + Adicionar
+          <input type="file" style="display:none;" ${max > 1 ? 'multiple' : ''} accept="${escapeHtml(accept)}" class="slotFileInput">
+        </label>
+      </div>
+      <div class="chips"></div>
+    </div>
+  `);
+
+  function refresh(){
+    const chipsWrap = slot.querySelector('.chips');
+    chipsWrap.innerHTML = '';
+    state.arquivosPorTipo[regra.tipo].forEach((f, i) => {
+      const chip = h(`<span class="file-chip">${escapeHtml(f.name)} <button type="button">✕</button></span>`);
+      chip.querySelector('button').addEventListener('click', () => {
+        state.arquivosPorTipo[regra.tipo].splice(i, 1);
+        refresh();
+      });
+      chipsWrap.appendChild(chip);
+    });
+    const count = state.arquivosPorTipo[regra.tipo].length;
+    slot.classList.toggle('filled', count >= min && count <= max);
+    slot.classList.toggle('error', count > max);
+  }
+
+  slot.querySelector('.slotFileInput').addEventListener('change', (e) => {
+    const novos = Array.from(e.target.files);
+    if (max === 1) state.arquivosPorTipo[regra.tipo] = novos.slice(0, 1);
+    else state.arquivosPorTipo[regra.tipo] = state.arquivosPorTipo[regra.tipo].concat(novos).slice(0, max === Infinity ? undefined : max);
+    e.target.value = '';
+    refresh();
+  });
+
+  refresh();
+  return slot;
+}
+
+/* ==========================================================================
+   TENTATIVA — iniciar + extrair dossiê localmente + avaliar
+   ========================================================================== */
+async function iniciarEEnviarTentativa(){
+  const regras = state.trabalho.regras_arquivos || [];
+  const faltando = regras.filter((r) => (state.arquivosPorTipo[r.tipo] || []).length < Number(r.min || 0));
+  if (faltando.length){
+    alert('Faltam arquivos obrigatórios: ' + faltando.map((r) => r.tipo).join(', '));
+    return;
+  }
+
+  state.tela = 'avaliando';
+  render();
+
+  const rInicio = await chamarBackend('iniciarTentativaTrabalho', {
+    id_trabalho: state.idTrabalho, id_token: state.idToken,
+    matricula_selecionada: state.matriculaDigitada || undefined,
+  });
+  if (!rInicio.ok){ state.erroGeral = rInicio; state.tela = 'erro'; render(); return; }
+  state.tentativa = rInicio;
+
+  const todosArquivos = Object.values(state.arquivosPorTipo).flat();
+  const { dossie, avisos } = await buildDossieSimples(todosArquivos);
+  state.avisosDossie = avisos;
+
+  const rAvaliar = await chamarBackend('avaliarTentativaTrabalho', {
+    token: rInicio.token, dossie_texto_json: JSON.stringify(dossie),
+  }, true);
+  if (!rAvaliar.ok){ state.erroGeral = rAvaliar; state.tela = 'erro'; render(); return; }
+
+  state.resultadoIA = rAvaliar.resultado;
+  state.tela = 'resultado';
+  render();
+}
+
+/* ==========================================================================
+   RESULTADO — nota, critérios, e a escolha (ou obrigação) de confirmar
+   ========================================================================== */
+function renderResultado(){
+  const r = state.resultadoIA;
+  const t = state.tentativa;
+  const nota = Number(r.notaFinal) || 0;
+  const notaClass = nota >= 7 ? 'high' : nota >= 5 ? 'mid' : 'low';
+
+  const panel = h(`
+    <div>
+      <div class="panel" style="text-align:center;">
+        <div class="desc">Tentativa ${t.numero_tentativa} de ${state.trabalho.tentativas_limite}</div>
+        <div class="grade-pill ${notaClass}">${nota.toFixed(1)}</div>
+        <div class="desc" style="margin-top:6px; margin-bottom:0;">nota desta tentativa</div>
+      </div>
+
+      <div class="panel">
+        <h2>Pontos fortes</h2>
+        <div class="desc" style="margin-bottom:0;">${escapeHtml(r.pontosFortesGeral || '')}</div>
+      </div>
+      <div class="panel">
+        <h2>Pontos a melhorar</h2>
+        <div class="desc" style="margin-bottom:0;">${escapeHtml(r.pontosAMelhorarGeral || '')}</div>
+      </div>
+
+      <div class="panel">
+        <h2>Por critério</h2>
+        <div id="critListResultado"></div>
+      </div>
+
+      ${state.avisosDossie.length ? `<div class="banner warn">Alguns arquivos não puderam ser lidos completamente: ${escapeHtml(state.avisosDossie.join('; '))}</div>` : ''}
+
+      <div id="acaoFinal"></div>
+    </div>
+  `);
+
+  const critWrap = panel.querySelector('#critListResultado');
+  (state.trabalho.criterios || []).forEach((c) => {
+    const a = (r.avaliacoes || []).find((x) => x.id === c.id) || { status: 'nao_atendido', evidencia: '', comentario: '' };
+    critWrap.appendChild(h(`
+      <div class="crit-row">
+        <div class="top">
+          <div><div class="cat">${escapeHtml(c.categoria)}</div><div class="crit-text">${escapeHtml(c.criterio)}</div></div>
+          <span class="status-pill ${escapeHtml(a.status)}">${escapeHtml(String(a.status).replace('_', ' '))}</span>
+        </div>
+        <div class="evidence-box">${escapeHtml(a.evidencia || '')}</div>
+        ${a.comentario ? `<div class="desc" style="margin-top:6px; margin-bottom:0;">${escapeHtml(a.comentario)}</div>` : ''}
+      </div>
+    `));
+  });
+
+  const acaoWrap = panel.querySelector('#acaoFinal');
+  if (t.forcar_confirmacao){
+    const motivo = t.motivo_forcar === 'limite_atingido'
+      ? 'Essa era sua última tentativa disponível.'
+      : 'Você está no período de tolerância do prazo.';
+    acaoWrap.appendChild(h(`<div class="banner warn">${motivo} Este resultado já vai virar sua <strong>entrega definitiva</strong> — confirme abaixo.</div>`));
+    const row = h(`<div class="btn-row"></div>`);
+    const btn = h(`<button class="btn teal full" style="width:100%;">Confirmar entrega definitiva</button>`);
+    btn.addEventListener('click', iniciarConfirmacao);
+    row.appendChild(btn);
+    acaoWrap.appendChild(row);
+  } else {
+    const row = h(`<div class="btn-row"></div>`);
+    const btnNovo = h(`<button class="btn secondary">↻ Enviar novo teste</button>`);
+    btnNovo.addEventListener('click', () => { state.tela = 'trabalho'; render(); });
+    const btnConfirmar = h(`<button class="btn teal">Confirmar entrega definitiva</button>`);
+    btnConfirmar.addEventListener('click', iniciarConfirmacao);
+    row.appendChild(btnNovo);
+    row.appendChild(btnConfirmar);
+    acaoWrap.appendChild(row);
+  }
+
+  return panel;
+}
+
+/* ==========================================================================
+   CONFIRMAÇÃO DEFINITIVA — manifesto, upload real, reconferência no servidor
+   ========================================================================== */
+function fileParaBase64(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function atualizarProgresso(filename, status){
+  const item = state.progressoUpload.find((p) => p.filename === filename);
+  if (item) item.status = status;
+  if (state.tela === 'confirmando') render();
+}
+
+async function iniciarConfirmacao(){
+  state.tela = 'confirmando';
+  state.progressoUpload = [];
+  render();
+
+  const itens = [];
+  Object.entries(state.arquivosPorTipo).forEach(([tipo, files]) => {
+    files.forEach((f) => itens.push({ tipo, file: f }));
+  });
+  const manifesto = itens.map((x) => ({ tipo: x.tipo, filename: x.file.name }));
+
+  const rIniciar = await chamarBackend('iniciarEntregaDefinitivaTrabalho', {
+    token: state.tentativa.token, manifesto_arquivos_json: JSON.stringify(manifesto),
+  }, true);
+  if (!rIniciar.ok){
+    if (rIniciar.erro === 'REGRAS_ARQUIVO_NAO_ATENDIDAS'){
+      state.erroGeral = { erro: 'Os arquivos enviados não atendem às regras deste trabalho: ' + (rIniciar.detalhes || []).join(' | ') + '. Essa tentativa foi consumida — envie uma nova.' };
+    } else {
+      state.erroGeral = rIniciar;
+    }
+    state.tela = 'erro';
+    render();
+    return;
+  }
+
+  state.progressoUpload = itens.map((x) => ({ filename: x.file.name, status: 'pendente' }));
+  render();
+
+  for (const item of itens){
+    atualizarProgresso(item.file.name, 'enviando');
+    let base64;
+    try{ base64 = await fileParaBase64(item.file); }
+    catch(e){ atualizarProgresso(item.file.name, 'erro'); continue; }
+    const rUp = await chamarBackend('uploadArquivoEntregaTrabalho', {
+      token: state.tentativa.token, tipo: item.tipo, filename: item.file.name,
+      mime_type: item.file.type || 'application/octet-stream', data_base64: base64,
+    }, true);
+    atualizarProgresso(item.file.name, rUp.ok ? 'ok' : 'erro');
+  }
+
+  const rFinalizar = await chamarBackend('finalizarEntregaDefinitivaTrabalho', { token: state.tentativa.token });
+  if (!rFinalizar.ok){
+    if (rFinalizar.erro === 'ARQUIVOS_FALTANDO'){
+      state.erroGeral = { erro: 'Alguns arquivos não foram recebidos corretamente: ' + (rFinalizar.faltando || []).map((f) => f.filename).join(', ') + '. Recarregue a página e tente reenviar.' };
+    } else {
+      state.erroGeral = rFinalizar;
+    }
+    state.tela = 'erro';
+    render();
+    return;
+  }
+
+  state.tela = 'confirmado';
+  render();
+}
+
+function renderConfirmando(){
+  return h(`
+    <div class="panel">
+      <h2>Enviando entrega definitiva...</h2>
+      <div class="desc">Não feche esta aba até terminar.</div>
+      <div>
+        ${state.progressoUpload.map((p) => `
+          <div class="progress-item ${p.status === 'ok' ? 'done' : p.status === 'erro' ? 'error' : 'pending'}">
+            <span class="icon">${p.status === 'ok' ? '✓' : p.status === 'erro' ? '✕' : p.status === 'enviando' ? '…' : '○'}</span>
+            <span>${escapeHtml(p.filename)}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `);
+}
+
+function renderConfirmado(){
+  return h(`
+    <div class="panel center-msg">
+      <div class="big-icon">✅</div>
+      <h2>Entrega definitiva confirmada</h2>
+      <div class="desc">Seu trabalho foi registrado com sucesso. Você pode fechar esta página.</div>
+    </div>
+  `);
+}
+
+/* ==========================================================================
+   INÍCIO
+   ========================================================================== */
+(function initFromUrl(){
+  const qp = new URLSearchParams(window.location.search);
+  const t = qp.get('trabalho');
+  if (t) state.idTrabalho = t.trim().toUpperCase();
+})();
+$('#topbarSub').textContent = 'CLP + SCADA · autoavaliação';
+render();
+
+
+
+</script>
+</body>
+</html>
