@@ -505,51 +505,95 @@ async function parseReportPDF(arrayBuffer, fileName, wantImages){
    do aluno ou o id da questão têm hífen no meio. )
    ========================================================================== */
 
-function classifyFile(file){
+// Extrai o conteúdo de UM arquivo pra virar texto que a IA consegue ler.
+// Usa parser especializado quando existe (CLP/.smbp, SCADA-Perspective/.zip,
+// PDF), e cai pra extração genérica pra qualquer outro tipo — inclusive
+// .ipynb (é JSON por baixo: dá pra ler célula por célula de verdade), zips
+// que não são Perspective (extrai todo arquivo de texto de dentro), e
+// qualquer arquivo de texto puro (código, .csv, .md, etc.). Só arquivo
+// genuinamente binário sem parser (imagem, executável...) fica sem texto.
+async function extrairConteudoArquivo(file){
   const n = file.name.toLowerCase();
-  if (n.endsWith('.smbp')) return 'clp';
-  if (n.endsWith('.pdf')) return 'relatorio';
-  if (n.endsWith('.qet') || n.endsWith('.qet_project') || /qelectrotech|electrotech|diagrama|esquema/.test(n)) return 'diagrama';
-  if (n.endsWith('.zip')){
-    if (/qelectrotech|electrotech|diagrama|esquema|eletric/.test(n)) return 'diagrama';
-    return 'scada';
+
+  if (n.endsWith('.smbp')){
+    const texto = await file.text();
+    const res = parseSMBP(texto, file.name);
+    return res.ok ? res.summaryText : `[erro ao ler ${file.name}: ${res.error}]`;
   }
-  return 'outro';
+
+  if (n.endsWith('.pdf')){
+    const buf = await file.arrayBuffer();
+    const res = await parseReportPDF(buf, file.name, false);
+    return res.ok ? res.summaryText : `[erro ao ler ${file.name}: ${res.error}]`;
+  }
+
+  if (n.endsWith('.zip')){
+    const buf = await file.arrayBuffer();
+    const zip = await JSZip.loadAsync(buf);
+    const nomes = Object.keys(zip.files);
+    const ehPerspective = nomes.some((p) => p.includes('com.inductiveautomation.perspective'));
+    if (ehPerspective){
+      const res = await parsePerspectiveZip(buf, file.name);
+      return res.ok ? res.summaryText : `[erro ao ler ${file.name}: ${res.error}]`;
+    }
+    // zip genérico: extrai texto de todo arquivo que pareça texto de dentro dele
+    const extsTexto = /\.(py|js|ts|txt|md|csv|json|xml|html|css|java|c|cpp|r|sql|yaml|yml|ipynb|qet)$/i;
+    const partes = [];
+    for (const nome of nomes){
+      if (zip.files[nome].dir || !extsTexto.test(nome)) continue;
+      if (partes.length >= 40) break; // limite de segurança pra não travar o navegador
+      try{
+        const conteudo = await zip.files[nome].async('string');
+        partes.push(`--- ${nome} ---\n${conteudo.slice(0, 8000)}`);
+      }catch(e){ /* arquivo dentro do zip não pôde ser lido como texto — ignora só ele */ }
+    }
+    return partes.length ? partes.join('\n\n') : `[zip entregue: ${file.name} — nenhum arquivo de texto reconhecido dentro dele]`;
+  }
+
+  if (n.endsWith('.ipynb')){
+    try{
+      const nb = JSON.parse(await file.text());
+      const partes = [];
+      (nb.cells || []).forEach((cell, i) => {
+        const src = Array.isArray(cell.source) ? cell.source.join('') : (cell.source || '');
+        if (!src.trim()) return;
+        partes.push(`[célula ${i + 1} — ${cell.cell_type}]\n${src}`);
+        (cell.outputs || []).forEach((out) => {
+          const txt = out.text || (out.data && out.data['text/plain']);
+          if (txt) partes.push('  saída: ' + (Array.isArray(txt) ? txt.join('') : txt).slice(0, 1000));
+        });
+      });
+      return partes.join('\n\n') || `[notebook ${file.name} sem células com conteúdo]`;
+    }catch(e){
+      return `[erro ao ler notebook ${file.name}: ${e.message}]`;
+    }
+  }
+
+  const extsTexto = ['.py','.js','.ts','.txt','.md','.csv','.json','.xml','.qet','.html','.css','.java','.c','.cpp','.r','.sql','.yaml','.yml'];
+  if (extsTexto.some((e) => n.endsWith(e))){
+    try{ return (await file.text()).slice(0, 20000); }
+    catch(e){ return `[erro ao ler ${file.name}: ${e.message}]`; }
+  }
+
+  return `[arquivo entregue: ${file.name} — formato binário, não foi possível extrair texto para a IA analisar]`;
 }
 
-// Monta o dossiê de texto a partir dos arquivos que o aluno anexou nos slots
-// de upload — independente de qual "tipo" (regra) o professor configurou
-// pra cada slot, a extração de conteúdo é sempre pela extensão real do
-// arquivo (só sabemos ler .smbp/.zip-Perspective/.pdf de verdade; outros
-// tipos configuráveis contam pra validação de entrega, mas não entram no
-// dossiê de evidências da IA — ainda não têm parser).
-async function buildDossieSimples(arquivos){
-  const dossie = { clpText:'', scadaText:'', reportText:'', diagramaText:'' };
+// Monta o dossiê organizado pelos MESMOS tipos que o professor configurou
+// nas regras de arquivo (não categorias fixas) — funciona pra qualquer
+// disciplina/trabalho, não só CLP+SCADA.
+async function buildDossieSimples(arquivosPorTipo){
+  const dossie = {};
   const avisos = [];
-  for (const file of arquivos){
-    const kind = classifyFile(file);
-    try{
-      if (kind === 'clp'){
-        const texto = await file.text();
-        const res = parseSMBP(texto, file.name);
-        if (res.ok) dossie.clpText += (dossie.clpText?'\n\n':'') + res.summaryText;
-        else avisos.push(`CLP (${file.name}): ${res.error}`);
-      } else if (kind === 'scada'){
-        const buf = await file.arrayBuffer();
-        const res = await parsePerspectiveZip(buf, file.name);
-        if (res.ok) dossie.scadaText += (dossie.scadaText?'\n\n':'') + res.summaryText;
-        else avisos.push(`SCADA (${file.name}): ${res.error}`);
-      } else if (kind === 'relatorio'){
-        const buf = await file.arrayBuffer();
-        const res = await parseReportPDF(buf, file.name, false);
-        if (res.ok) dossie.reportText += (dossie.reportText?'\n\n':'') + res.summaryText;
-        else avisos.push(`Relatório (${file.name}): ${res.error}`);
-      } else if (kind === 'diagrama'){
-        dossie.diagramaText += (dossie.diagramaText?'\n\n':'') + `Arquivo de diagrama entregue: ${file.name} (leitura de conteúdo não disponível para este tipo).`;
+  for (const [tipo, arquivos] of Object.entries(arquivosPorTipo)){
+    const partes = [];
+    for (const file of arquivos){
+      try{
+        partes.push(`### ${file.name}\n${await extrairConteudoArquivo(file)}`);
+      }catch(e){
+        avisos.push(`Erro ao processar ${file.name}: ${e.message}`);
       }
-    }catch(e){
-      avisos.push(`Erro ao processar ${file.name}: ${e.message}`);
     }
+    if (partes.length) dossie[tipo] = partes.join('\n\n');
   }
   return { dossie, avisos };
 }
@@ -591,6 +635,7 @@ function render(){
     precisa_matricula: renderPrecisaMatricula,
     carregando: () => renderCentro('⏳', 'Carregando...'),
     trabalho: renderTrabalho,
+    retomada: renderRetomada,
     avaliando: () => renderCentro('🤖', 'A IA está avaliando sua entrega...', true),
     resultado: renderResultado,
     confirmando: renderConfirmando,
@@ -750,8 +795,87 @@ async function carregarTrabalho(){
     state.erroGeral = r; state.tela = 'erro'; render(); return;
   }
   state.trabalho = r;
+
+  // Sem tentativas normais sobrando (ou prazo já passou) e ainda não
+  // confirmou? Pode ser um aluno que fechou a aba na última tentativa sem
+  // confirmar — verifica se sobrou uma avaliação pendente pra retomar,
+  // em vez de simplesmente travar ele pra sempre.
+  const tentativasRestantes = Math.max(0, r.tentativas_limite - r.tentativas_usadas);
+  if (!r.ja_confirmado && (tentativasRestantes <= 0 || r.modo_prazo === 'expirado')){
+    const rp = await chamarBackend('retomarTentativaPendente', {
+      id_trabalho: state.idTrabalho, id_token: state.idToken,
+      matricula_selecionada: state.matriculaDigitada || undefined,
+    });
+    if (rp.ok){
+      state.tentativa = { token: rp.token, numero_tentativa: rp.numero_tentativa, forcar_confirmacao: true, motivo_forcar: 'tentativa_pendente' };
+      state.resultadoIA = rp.resultado;
+      state.arquivosPorTipo = {};
+      state.tela = 'retomada';
+      render();
+      return;
+    }
+  }
+
   state.tela = 'trabalho';
   render();
+}
+
+/* ==========================================================================
+   RETOMAR TENTATIVA PENDENTE — aluno fechou a aba antes de confirmar a
+   última chance. Oferece reanexar e confirmar normalmente, ou (último
+   recurso, bem sinalizado) confirmar mesmo sem arquivo nenhum.
+   ========================================================================== */
+function renderRetomada(){
+  const r = state.resultadoIA;
+  const t = state.trabalho;
+  const nota = r ? (Number(r.notaFinal) || 0) : null;
+
+  const panel = h(`
+    <div>
+      <div class="banner warn">⚠ Você tem uma avaliação da <strong>tentativa ${state.tentativa.numero_tentativa}</strong> que não chegou a virar entrega definitiva — provavelmente a aba fechou antes de confirmar. Esta é a sua última chance para este trabalho.</div>
+
+      ${r ? `
+        <div class="panel" style="text-align:center;">
+          <div class="grade-pill ${nota >= 7 ? 'high' : nota >= 5 ? 'mid' : 'low'}">${nota.toFixed(1)}</div>
+          <div class="desc" style="margin-top:6px; margin-bottom:0;">nota dessa avaliação</div>
+        </div>
+      ` : ''}
+
+      <div class="panel">
+        <h2>Reanexar arquivos e confirmar</h2>
+        <div class="desc">Se você ainda tem os arquivos neste dispositivo, anexe de novo abaixo e confirme normalmente.</div>
+        <div id="uploadSlotsRetomada"></div>
+        <div class="btn-row" style="margin-top:10px;">
+          <button class="btn teal full" id="btnConfirmarRetomada" style="width:100%;">Confirmar entrega definitiva</button>
+        </div>
+      </div>
+
+      <div class="panel" style="border-color:var(--red);">
+        <h2 style="color:var(--red);">Não tenho mais os arquivos</h2>
+        <div class="desc">Confirma sua entrega <strong>sem nenhum arquivo novo</strong> (só com o que já tiver sido enviado antes de fechar a aba, se houver). Use só se realmente não tiver como reenviar — fica sinalizado pro professor revisar.</div>
+        <div class="btn-row">
+          <button class="btn danger" id="btnConfirmarSemArquivos">Confirmar entrega vazia mesmo assim</button>
+        </div>
+      </div>
+    </div>
+  `);
+
+  const slotsWrap = panel.querySelector('#uploadSlotsRetomada');
+  (t.regras_arquivos || []).forEach((regra) => slotsWrap.appendChild(renderUploadSlot(regra)));
+
+  panel.querySelector('#btnConfirmarRetomada').addEventListener('click', iniciarConfirmacao);
+  panel.querySelector('#btnConfirmarSemArquivos').addEventListener('click', async () => {
+    if (!confirm('Tem certeza? Isso confirma a entrega sem arquivos novos, de forma definitiva e irreversível.')) return;
+    state.tela = 'confirmando';
+    state.progressoUpload = [];
+    render();
+    const r2 = await chamarBackend('confirmarSemArquivos', { token: state.tentativa.token }, true);
+    if (!r2.ok){ state.erroGeral = r2; state.tela = 'erro'; render(); return; }
+    state.tela = 'confirmado';
+    render();
+  });
+
+  return panel;
 }
 
 /* ==========================================================================
@@ -867,9 +991,23 @@ function renderUploadSlot(regra){
 
   slot.querySelector('.slotFileInput').addEventListener('change', (e) => {
     const novos = Array.from(e.target.files);
-    if (max === 1) state.arquivosPorTipo[regra.tipo] = novos.slice(0, 1);
-    else state.arquivosPorTipo[regra.tipo] = state.arquivosPorTipo[regra.tipo].concat(novos).slice(0, max === Infinity ? undefined : max);
+    const aceitos = [];
+    const rejeitados = [];
+    novos.forEach((f) => {
+      if (regra.palavra_chave_nome){
+        let bate;
+        try{ bate = new RegExp(regra.palavra_chave_nome, 'i').test(f.name); }
+        catch(err){ bate = f.name.toLowerCase().includes(String(regra.palavra_chave_nome).toLowerCase()); }
+        if (!bate){ rejeitados.push(f.name); return; }
+      }
+      aceitos.push(f);
+    });
+    if (max === 1) state.arquivosPorTipo[regra.tipo] = aceitos.slice(0, 1);
+    else state.arquivosPorTipo[regra.tipo] = state.arquivosPorTipo[regra.tipo].concat(aceitos).slice(0, max === Infinity ? undefined : max);
     e.target.value = '';
+    if (rejeitados.length){
+      alert(`Rejeitado — o nome do arquivo precisa conter "${regra.palavra_chave_nome}":\n` + rejeitados.join('\n'));
+    }
     refresh();
   });
 
@@ -898,8 +1036,7 @@ async function iniciarEEnviarTentativa(){
   if (!rInicio.ok){ state.erroGeral = rInicio; state.tela = 'erro'; render(); return; }
   state.tentativa = rInicio;
 
-  const todosArquivos = Object.values(state.arquivosPorTipo).flat();
-  const { dossie, avisos } = await buildDossieSimples(todosArquivos);
+  const { dossie, avisos } = await buildDossieSimples(state.arquivosPorTipo);
   state.avisosDossie = avisos;
 
   const rAvaliar = await chamarBackend('avaliarTentativaTrabalho', {
