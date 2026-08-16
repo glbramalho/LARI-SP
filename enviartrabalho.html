@@ -189,6 +189,7 @@ footer.note{color:var(--muted); font-size:12px; margin-top:26px;}
     <div class="sub" id="topbarSub">carregando...</div>
   </div>
   <div class="spacer"></div>
+  <div id="marcadorVersao" style="font-family:var(--font-mono); font-size:11px; color:#8a8577; margin-right:6px; white-space:nowrap;"></div>
   <div class="userchip" id="userChip" style="display:none;"></div>
 </div>
 
@@ -203,6 +204,25 @@ footer.note{color:var(--muted); font-size:12px; margin-top:26px;}
 const SERVIDOR_URL = "https://script.google.com/macros/s/AKfycbxw3n6nD31nESLeT6AKkh4_flFb5qc5YGSdWoioqqxcv7SKidBurDHRIyVVZYomV8OP/exec";
 const GOOGLE_CLIENT_ID = "534571821691-7gvp1ubpltfg86fo6ouetf5ci209ah4h.apps.googleusercontent.com";
 let BACKEND_URL = "";
+
+/* ==========================================================================
+   MARCADOR DE VERSÃO — data/hora (America/Fortaleza) da última alteração
+   deste arquivo, exibida discretamente no topbar junto com a data/hora da
+   última alteração do backend (Code.gs), buscada em tempo real.
+   CLAUDE: atualize ULTIMA_ATUALIZACAO_FRONTEND (formato "dd/mm/aaaa hh:mm",
+   horário de Fortaleza) toda vez que este arquivo for editado, ANTES de
+   entregar a versão nova. Não precisa tocar em mais nada além desta linha.
+   ========================================================================== */
+const ULTIMA_ATUALIZACAO_FRONTEND = "15/08/2026 20:05";
+
+async function carregarMarcadorVersao(){
+  const el = document.getElementById('marcadorVersao');
+  if (!el) return;
+  el.innerHTML = `<b>···</b> | ${ULTIMA_ATUALIZACAO_FRONTEND}`;
+  const r = await chamarBackend('getStatusBackend', {});
+  const backend = (r.ok && r.atualizado_backend) ? r.atualizado_backend : '?';
+  el.innerHTML = `<b>${backend}</b> | ${ULTIMA_ATUALIZACAO_FRONTEND}`;
+}
 
 // Necessário pro parseReportPDF (arquivo compartilhado) funcionar em thread
 // separada — sem isso, pdf.js roda no fallback de thread principal (mais
@@ -943,6 +963,7 @@ function renderConfirmado(){
 })();
 $('#topbarSub').textContent = 'CLP + SCADA · autoavaliação';
 render();
+carregarMarcadorVersao();
 
 
 
