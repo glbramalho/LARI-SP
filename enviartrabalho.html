@@ -213,7 +213,7 @@ let BACKEND_URL = "";
    horário de Fortaleza) toda vez que este arquivo for editado, ANTES de
    entregar a versão nova. Não precisa tocar em mais nada além desta linha.
    ========================================================================== */
-const ULTIMA_ATUALIZACAO_FRONTEND = "15/08/2026 21:15";
+const ULTIMA_ATUALIZACAO_FRONTEND = "16/08/2026 09:40";
 
 async function carregarMarcadorVersao(){
   const el = document.getElementById('marcadorVersao');
@@ -342,6 +342,11 @@ const state = {
   manifesto: null,
   progressoUpload: [],     // [{filename, tipo, status:'pendente'|'enviando'|'ok'|'erro'}]
   erroGeral: null,
+  chavePropria: {          // avaliação com a chave/modelo do PRÓPRIO aluno —
+    usar: false,            // não passa pela cota compartilhada nem pelo
+    apiKey: '',              // limite diário do servidor. Fica só na
+    model: 'gemini-flash-latest', // memória (não persiste entre sessões).
+  },
 };
 
 function render(){
@@ -377,6 +382,10 @@ function renderErro(){
   const msg = MENSAGENS_ERRO[state.erroGeral?.erro] || state.erroGeral?.erro || 'Algo deu errado.';
   const detalhe = state.erroGeral?.detalhe;
   const podeTentarNovamente = state.erroGeral?.erro === 'ERRO_AO_AVALIAR';
+  // Nestes dois casos a IA não rodou, mas a tentativa (token) já existe no
+  // servidor — o aluno pode seguir direto pra confirmar a entrega dos
+  // arquivos sem depender da avaliação (prioriza nunca travar a entrega).
+  const podeConfirmarSemIA = (state.erroGeral?.erro === 'ERRO_LIMITE_IA' || state.erroGeral?.erro === 'LIMITE_DIARIO_IA_ATINGIDO') && state.tentativa?.token;
   return h(`
     <div class="panel center-msg">
       <div class="big-icon">⚠️</div>
@@ -385,6 +394,7 @@ function renderErro(){
       ${detalhe ? `<div class="banner err" style="text-align:left; margin-top:8px; font-family:var(--font-mono,monospace); font-size:12px; opacity:0.85;">${escapeHtml(detalhe)}</div>` : ''}
       <div class="btn-row" style="justify-content:center; margin-top:16px;">
         ${podeTentarNovamente ? '<button class="btn teal" id="btnTentarNovamenteAvaliar">↻ Tentar novamente</button>' : ''}
+        ${podeConfirmarSemIA ? '<button class="btn teal" id="btnConfirmarSemIA">Confirmar entrega mesmo assim →</button>' : ''}
         <button class="btn secondary" id="btnVoltarInicio">← Voltar ao início</button>
       </div>
     </div>
@@ -393,7 +403,8 @@ function renderErro(){
 
 const MENSAGENS_ERRO = {
   ERRO_AO_AVALIAR: 'A inteligência artificial demorou ou falhou ao avaliar seus arquivos — costuma ser uma instabilidade momentânea da API, não um problema com o que você enviou. Essa tentativa NÃO foi consumida. Aguarde um instante e tente de novo.',
-  ERRO_LIMITE_IA: 'O sistema está recebendo muitos pedidos de avaliação agora e atingiu o limite de uso da IA neste minuto. Essa tentativa NÃO foi consumida. Aguarde alguns minutos antes de tentar de novo — insistir na hora não adianta, o limite é por tempo, não por tentativa.',
+  ERRO_LIMITE_IA: 'O sistema está recebendo muitos pedidos de avaliação agora e atingiu o limite de uso da IA neste minuto. Essa tentativa NÃO foi consumida. Aguarde alguns minutos antes de tentar de novo — insistir na hora não adianta, o limite é por tempo, não por tentativa. Se for urgente, você pode confirmar a entrega dos arquivos mesmo sem o resultado da IA, ou usar sua própria chave (opção "Usar minha própria chave de IA" antes de testar).',
+  LIMITE_DIARIO_IA_ATINGIDO: 'Você já usou sua avaliação por IA de hoje (a chave é compartilhada com toda a turma). Você ainda PODE confirmar a entrega dos seus arquivos normalmente, mesmo sem rodar a IA de novo — ou volte amanhã pra testar. Se quiser testar mais vezes hoje, use sua própria chave de IA (opção antes do botão "Testar com IA").',
   PRECISA_MATRICULA: 'Não reconhecemos seu e-mail automaticamente. Informe sua matrícula.',
   MATRICULA_NAO_ENCONTRADA: 'Não encontramos essa matrícula no sistema. Confira o número ou fale com o professor.',
   TRABALHO_NAO_ENCONTRADO: 'Esse código de trabalho não existe. Confira o código no Classroom.',
@@ -416,6 +427,10 @@ document.addEventListener('click', (e) => {
   if (e.target && e.target.id === 'btnTentarNovamenteAvaliar'){
     state.erroGeral = null;
     iniciarEEnviarTentativa();
+  }
+  if (e.target && e.target.id === 'btnConfirmarSemIA'){
+    state.erroGeral = null;
+    iniciarConfirmacao();
   }
 });
 
@@ -650,6 +665,27 @@ function renderTrabalho(){
         <div id="uploadSlots"></div>
       </div>
 
+      <div class="panel">
+        <details ${state.chavePropria.usar ? 'open' : ''}>
+          <summary style="cursor:pointer; font-size:13.5px; color:var(--muted);">⚙ Usar minha própria chave de IA (opcional)</summary>
+          <div style="margin-top:10px;">
+            <div class="desc" style="margin-bottom:10px;">A chave da escola tem uso limitado por toda a turma (por isso o limite de 1 avaliação/dia por padrão). Se você tiver sua própria chave gratuita do Gemini (<a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>), pode usá-la aqui — sua avaliação não conta no limite compartilhado. Sem chave própria, tudo continua funcionando normalmente com a chave da escola.</div>
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:10px;">
+              <input type="checkbox" id="chkChavePropria" ${state.chavePropria.usar ? 'checked' : ''}>
+              Usar minha chave nesta tentativa
+            </label>
+            <div class="field">
+              <label>Sua API key do Gemini</label>
+              <input type="password" id="inputChavePropria" placeholder="AIza..." value="${escapeHtml(state.chavePropria.apiKey)}" autocomplete="off">
+            </div>
+            <div class="field">
+              <label>Modelo</label>
+              <input type="text" id="inputModeloProprio" placeholder="gemini-flash-latest" value="${escapeHtml(state.chavePropria.model)}">
+            </div>
+          </div>
+        </details>
+      </div>
+
       ${tentativasRestantes <= 0
         ? `<div class="banner err">Você já usou todas as suas tentativas para este trabalho. Fale com o professor se precisar de uma exceção.</div>`
         : `<div class="btn-row"><button class="btn teal full" id="btnTestarIA" style="width:100%;">▶ Testar com IA</button></div>`}
@@ -673,6 +709,13 @@ function renderTrabalho(){
 
   const btnTestar = panel.querySelector('#btnTestarIA');
   if (btnTestar) btnTestar.addEventListener('click', iniciarEEnviarTentativa);
+
+  const chkChave = panel.querySelector('#chkChavePropria');
+  if (chkChave) chkChave.addEventListener('change', e => { state.chavePropria.usar = e.target.checked; });
+  const inputChave = panel.querySelector('#inputChavePropria');
+  if (inputChave) inputChave.addEventListener('input', e => { state.chavePropria.apiKey = e.target.value; });
+  const inputModelo = panel.querySelector('#inputModeloProprio');
+  if (inputModelo) inputModelo.addEventListener('input', e => { state.chavePropria.model = e.target.value; });
 
   return panel;
 }
@@ -743,6 +786,51 @@ function renderUploadSlot(regra){
 }
 
 /* ==========================================================================
+   AVALIAÇÃO COM CHAVE PRÓPRIA DO ALUNO — chamada direto do navegador dele
+   pro Gemini, sem passar pelo servidor/cota compartilhada. Mesmo critério
+   de erro transitório usado no Avaliador.html, pra consistência.
+   ========================================================================== */
+function isErroTransitorioGeminiAluno_(err){
+  const msg = String(err && err.message || '');
+  if (/Gemini respondeu (503|429|500|502|504)/.test(msg)) return true;
+  if (/Falha de rede ao chamar a API do Gemini/.test(msg)) return true;
+  return false;
+}
+
+async function geminiGenerateAluno_(promptTexto, systemInstruction, apiKey, model){
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+  const body = {
+    contents: [{ role: 'user', parts: [{ text: promptTexto }] }],
+    systemInstruction: { parts: [{ text: systemInstruction }] },
+    generationConfig: { temperature: 0.15, responseMimeType: 'application/json' },
+  };
+  const MAX_TENTATIVAS = 4;
+  let ultimoErro;
+  for (let tentativa = 0; tentativa < MAX_TENTATIVAS; tentativa++){
+    if (tentativa > 0) await new Promise(r => setTimeout(r, 1000 * Math.pow(2, tentativa - 1)));
+    try{
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok){
+        const txt = await resp.text().catch(() => '');
+        throw new Error(`Gemini respondeu ${resp.status}: ${txt.slice(0, 300)}`);
+      }
+      const data = await resp.json();
+      const texto = (data.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
+      if (!texto) throw new Error('RESPOSTA_VAZIA_DA_IA');
+      return JSON.parse(texto);
+    }catch(e){
+      ultimoErro = e;
+      if (!isErroTransitorioGeminiAluno_(e)) throw e;
+    }
+  }
+  throw ultimoErro;
+}
+
+/* ==========================================================================
    TENTATIVA — iniciar + extrair dossiê localmente + avaliar
    ========================================================================== */
 async function iniciarEEnviarTentativa(){
@@ -750,6 +838,12 @@ async function iniciarEEnviarTentativa(){
   const faltando = regras.filter((r) => (state.arquivosPorTipo[r.tipo] || []).length < Number(r.min || 0));
   if (faltando.length){
     alert('Faltam arquivos obrigatórios: ' + faltando.map((r) => r.tipo).join(', '));
+    return;
+  }
+
+  const usarChavePropria = state.chavePropria.usar;
+  if (usarChavePropria && !state.chavePropria.apiKey.trim()){
+    alert('Marque "usar minha chave" mas não preencheu a API key. Preencha a chave ou desmarque a opção.');
     return;
   }
 
@@ -765,6 +859,31 @@ async function iniciarEEnviarTentativa(){
 
   const { dossie, avisos } = await buildDossieSimples(state.arquivosPorTipo);
   state.avisosDossie = avisos;
+
+  if (usarChavePropria){
+    const rPrompt = await chamarBackend('montarPromptTentativaTrabalho', {
+      token: rInicio.token, dossie_texto_json: JSON.stringify(dossie),
+    }, true);
+    if (!rPrompt.ok){ state.erroGeral = rPrompt; state.tela = 'erro'; render(); return; }
+
+    let resultado;
+    try{
+      resultado = await geminiGenerateAluno_(rPrompt.prompt, rPrompt.system_instruction, state.chavePropria.apiKey.trim(), state.chavePropria.model.trim() || 'gemini-flash-latest');
+    }catch(e){
+      state.erroGeral = { erro: 'ERRO_AO_AVALIAR', detalhe: '(usando sua chave própria) ' + e.message };
+      state.tela = 'erro'; render(); return;
+    }
+
+    const rRegistrar = await chamarBackend('registrarResultadoTentativaTrabalho', {
+      token: rInicio.token, resultado_json: JSON.stringify(resultado), dossie_texto_json: JSON.stringify(dossie),
+    }, true);
+    if (!rRegistrar.ok){ state.erroGeral = rRegistrar; state.tela = 'erro'; render(); return; }
+
+    state.resultadoIA = rRegistrar.resultado;
+    state.tela = 'resultado';
+    render();
+    return;
+  }
 
   const rAvaliar = await chamarBackend('avaliarTentativaTrabalho', {
     token: rInicio.token, dossie_texto_json: JSON.stringify(dossie),
