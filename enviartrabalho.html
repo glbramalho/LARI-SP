@@ -8,6 +8,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<!-- Extração/cruzamento compartilhado com Avaliador.html — ver comentário no
+     topo do próprio arquivo. Caminho versionado (v1): nunca aponta pra
+     "main"/HEAD, então nada muda aqui sem uma troca deliberada desta linha. -->
+<script src="https://glbramalho.github.io/LARI-SP/shared/dossie-parsers.v1.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 :root{
@@ -200,6 +204,11 @@ const SERVIDOR_URL = "https://script.google.com/macros/s/AKfycbxw3n6nD31nESLeT6A
 const GOOGLE_CLIENT_ID = "534571821691-7gvp1ubpltfg86fo6ouetf5ci209ah4h.apps.googleusercontent.com";
 let BACKEND_URL = "";
 
+// Necessário pro parseReportPDF (arquivo compartilhado) funcionar em thread
+// separada — sem isso, pdf.js roda no fallback de thread principal (mais
+// lento, com aviso no console). Mesma versão carregada no <head>.
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
 async function carregarConfig(){
   try{
     const r = await fetch(`${SERVIDOR_URL}?ts=${Date.now()}`, { cache: "no-store" });
@@ -242,361 +251,49 @@ async function chamarBackend(action, params, usarPost){
   catch(e){ return { ok:false, erro:"RESPOSTA_INVALIDA_DO_SERVIDOR", detalhe: texto.slice(0,200) }; }
 }
 
-/* ==========================================================================
-   PARSERS DE ARQUIVO — copiados verbatim do Avaliador.html (mesmo motor de
-   extração de texto), pra montar o mesmo tipo de dossiê que o servidor
-   espera em avaliarTentativaTrabalho. Só o texto extraído trafega pro
-   servidor — os arquivos originais só são enviados depois, na confirmação
-   de entrega definitiva.
-   ========================================================================== */
-function dChild(el, tag){
-  if (!el) return null;
-  return Array.from(el.children).find(c => c.tagName === tag) || null;
-}
-function dText(el, tag, fallback=''){
-  const c = dChild(el, tag);
-  return c ? c.textContent.trim() : fallback;
-}
-
-function parseSMBP(xmlText, fileName){
-  const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
-  const perr = doc.querySelector('parsererror');
-  if (perr) return { ok:false, error: 'XML do .smbp inválido ou corrompido (' + fileName + ')', summaryText:'' };
-
-  const root = doc.documentElement;
-  const projectName = dText(root, 'Name') || fileName;
-  const swConfig = dChild(root, 'SoftwareConfiguration');
-  const pousRoot = swConfig ? dChild(swConfig, 'Pous') : null;
-
-  const ladderPOUs = [];
-  let grafcet = null;
-
-  if (pousRoot){
-    Array.from(pousRoot.children).forEach(child => {
-      if (child.tagName === 'ProgramOrganizationUnits'){
-        const name = dText(child, 'Name');
-        const rungs = child.querySelectorAll('RungEntity').length;
-        const typeCounts = {};
-        child.querySelectorAll('ElementType').forEach(el => {
-          const t = el.textContent.trim();
-          typeCounts[t] = (typeCounts[t]||0) + 1;
-        });
-        ladderPOUs.push({ name, rungs, typeCounts });
-      } else if (child.tagName === 'GrafcetPou'){
-        const steps = Array.from(child.querySelectorAll('GrafcetNodeStep')).map(s => {
-          const sp = dChild(s, 'StepPou');
-          return {
-            stepNumber: dText(sp, 'StepNumber'),
-            name: dText(sp, 'Name'),
-            initial: dText(s, 'IsInitialStep') === 'true',
-            rungsInStep: sp ? sp.querySelectorAll('RungEntity').length : 0
-          };
-        }).sort((a,b) => Number(a.stepNumber) - Number(b.stepNumber));
-        const transitions = child.querySelectorAll('GrafcetTransition').length;
-        grafcet = { steps, transitions };
-      }
-    });
-  }
-
-  const symbols = Array.from(doc.querySelectorAll('CustomSymbols > CustomSymbol')).map(cs => ({
-    address: dText(cs, 'Address'), symbol: dText(cs, 'Symbol')
-  }));
-
-  const watchLists = Array.from(doc.querySelectorAll('WatchLists > WatchListEntity')).map(wl => {
-    const items = Array.from(wl.querySelectorAll('WatchListItemEntity')).map(it => ({
-      address: dText(it, 'Address'), traced: dText(it, 'IsTraced') === 'true'
-    }));
-    return { name: dText(wl, 'Name'), items, tracedCount: items.filter(i=>i.traced).length };
-  });
-
-  const digitalInputs = doc.querySelectorAll('DigitalInputs > DiscretInput').length;
-  const digitalOutputs = doc.querySelectorAll('DigitalOutputs > DiscretOutput').length;
-  const analogInputs = Array.from(doc.querySelectorAll('AnalogInputs > AnalogIO')).map(a => ({
-    address: dText(a,'Address'), min: dText(a,'Minimum'), max: dText(a,'Maximum')
-  }));
-  const analogOutputs = Array.from(doc.querySelectorAll('AnalogOutputs > AnalogIO')).map(a => ({
-    address: dText(a,'Address'), min: dText(a,'Minimum'), max: dText(a,'Maximum')
-  }));
-
-  const allTypeCounts = {};
-  doc.querySelectorAll('ElementType').forEach(el => {
-    const t = el.textContent.trim();
-    allTypeCounts[t] = (allTypeCounts[t]||0) + 1;
-  });
-
-  // ----- Monta texto-resumo (para IA e para exibição) -----
-  const lines = [];
-  lines.push(`Arquivo: ${fileName}  |  Projeto: ${projectName}`);
-  lines.push('');
-  lines.push('POUs LADDER:');
-  if (ladderPOUs.length === 0) lines.push('  (nenhum POU ladder encontrado)');
-  ladderPOUs.forEach(p => {
-    const types = Object.entries(p.typeCounts).map(([k,v]) => `${k}:${v}`).join(', ');
-    lines.push(`  - "${p.name}" — ${p.rungs} rungs (instruções: ${types || 'nenhuma'})`);
-  });
-  lines.push('');
-  lines.push('GRAFCET:');
-  if (grafcet){
-    lines.push(`  ${grafcet.steps.length} etapas, ${grafcet.transitions} transições`);
-    grafcet.steps.forEach(s => lines.push(`  - Etapa ${s.stepNumber}${s.initial?' (inicial)':''}: "${s.name}" (${s.rungsInStep} rung(s) de ação)`));
-  } else {
-    lines.push('  (nenhum Grafcet encontrado no projeto)');
-  }
-  lines.push('');
-  lines.push(`SÍMBOLOS CUSTOMIZADOS (${symbols.length}):`);
-  symbols.forEach(s => lines.push(`  - ${s.symbol} = ${s.address}`));
-  lines.push('');
-  lines.push('TABELAS DE ANIMAÇÃO / GRÁFICO DE TEMPO (WatchLists):');
-  if (watchLists.length === 0){
-    lines.push('  (nenhuma tabela de animação encontrada — logo, nenhum gráfico de tempo configurado)');
-  }
-  watchLists.forEach(wl => {
-    lines.push(`  - "${wl.name}": ${wl.items.length} variável(is) monitorada(s), ${wl.tracedCount} com traço/gráfico de tempo habilitado (IsTraced=true)`);
-    lines.push(`      endereços: ${wl.items.map(i => i.address + (i.traced?'[TRAÇO ATIVO]':'')).join(', ')}`);
-  });
-  lines.push('');
-  lines.push(`E/S DIGITAIS CONFIGURADAS: ${digitalInputs} entradas, ${digitalOutputs} saídas`);
-  lines.push(`E/S ANALÓGICAS: ${analogInputs.length} entrada(s) [${analogInputs.map(a=>`${a.address}(${a.min}-${a.max})`).join(', ')}], ${analogOutputs.length} saída(s) [${analogOutputs.map(a=>`${a.address}(${a.min}-${a.max})`).join(', ')}]`);
-  lines.push('');
-  lines.push('CONTAGEM TOTAL DE INSTRUÇÕES LADDER POR TIPO: ' + Object.entries(allTypeCounts).map(([k,v])=>`${k}:${v}`).join(', '));
-
-  return {
-    ok:true,
-    summaryText: lines.join('\n'),
-    raw: { projectName, ladderPOUs, grafcet, symbols, watchLists, digitalInputs, digitalOutputs, analogInputs, analogOutputs }
-  };
-}
 
 /* ==========================================================================
-   PARSER — SCADA (Ignition Perspective, .zip)
+   DOSSIÊ — usa os parsers/cruzamento de shared/dossie-parsers.vN.js (mesmo
+   arquivo que o Avaliador.html carrega — ver <script src> no <head>). Antes
+   disso, este arquivo tinha uma cópia local simplificada (só texto, sem
+   idsByKind/crossRefText), que foi o motivo do cruzamento automático nunca
+   aparecer na autoavaliação do aluno. Não duplicar essas funções aqui de
+   novo — qualquer ajuste no parser/cruzamento entra no arquivo compartilhado.
    ========================================================================== */
-function walkPerspectiveComponent(node, acc){
-  if (!node || typeof node !== 'object') return;
-  if (node.type){
-    acc.typeCounts[node.type] = (acc.typeCounts[node.type]||0) + 1;
-    const name = node.meta?.name || '';
-    if (/alarm/i.test(node.type) || /alarme/i.test(name)) acc.alarmComponents.push(name || node.type);
-    if (/chart|trend|power/i.test(node.type) || /histor/i.test(name)) acc.trendComponents.push(name || node.type);
-  }
-  // bindings (tag paths)
-  const propConfig = node.propConfig;
-  if (propConfig && typeof propConfig === 'object'){
-    Object.values(propConfig).forEach(pc => {
-      const tp = pc?.binding?.config?.tagPath;
-      if (tp) acc.tagBindings.add(tp);
-    });
-  }
-  // scripts em eventos
-  if (node.events?.dom){
-    Object.entries(node.events.dom).forEach(([evtName, evt]) => {
-      const script = evt?.config?.script;
-      if (script) acc.scripts.push({ component: node.meta?.name || node.type || '?', event: evtName, script: script.trim().slice(0,300) });
-    });
-  }
-  if (Array.isArray(node.children)) node.children.forEach(c => walkPerspectiveComponent(c, acc));
-}
-
-async function parsePerspectiveZip(arrayBuffer, fileName){
-  let zip;
-  try{
-    zip = await JSZip.loadAsync(arrayBuffer);
-  }catch(e){
-    return { ok:false, error:'Não consegui abrir "'+fileName+'" como .zip: ' + e.message, summaryText:'' };
-  }
-
-  const viewFiles = Object.keys(zip.files).filter(p => /\/views\/[^/]+\/view\.json$/.test(p) && !p.includes('__MACOSX'));
-  if (viewFiles.length === 0){
-    return { ok:false, error:'"'+fileName+'" não parece um projeto Ignition Perspective (não encontrei views/*/view.json).', summaryText:'' };
-  }
-
-  const views = [];
-  for (const path of viewFiles){
-    const viewName = path.match(/\/views\/([^/]+)\/view\.json$/)[1];
-    let json;
-    try{ json = JSON.parse(await zip.files[path].async('text')); }catch(e){ continue; }
-    const acc = { typeCounts:{}, alarmComponents:[], trendComponents:[], tagBindings:new Set(), scripts:[] };
-    walkPerspectiveComponent(json.root, acc);
-    views.push({ name: viewName, ...acc, tagBindings: Array.from(acc.tagBindings) });
-  }
-
-  // page-config (navegação)
-  let pages = [];
-  const configPath = Object.keys(zip.files).find(p => /page-config\/config\.json$/.test(p) && !p.includes('__MACOSX'));
-  if (configPath){
-    try{
-      const cfg = JSON.parse(await zip.files[configPath].async('text'));
-      pages = Object.entries(cfg.pages || {}).map(([route, p]) => `${route} → ${p.viewPath}`);
-    }catch(e){}
-  }
-
-  const lines = [];
-  lines.push(`Arquivo: ${fileName}  |  ${views.length} tela(s)/view(s) encontrada(s)`);
-  lines.push('');
-  if (pages.length){
-    lines.push('NAVEGAÇÃO (páginas configuradas):');
-    pages.forEach(p => lines.push('  - ' + p));
-    lines.push('');
-  }
-  views.forEach(v => {
-    lines.push(`VIEW "${v.name}":`);
-    lines.push('  componentes: ' + (Object.entries(v.typeCounts).map(([k,c])=>`${k}(${c})`).join(', ') || 'nenhum'));
-    if (v.tagBindings.length) lines.push('  tags vinculadas: ' + v.tagBindings.join(', '));
-    if (v.alarmComponents.length) lines.push('  ⚑ componente(s) de alarme: ' + v.alarmComponents.join(', '));
-    if (v.trendComponents.length) lines.push('  ⚑ componente(s) de tendência/histórico (gráfico de tempo): ' + v.trendComponents.join(', '));
-    if (v.scripts.length){
-      lines.push('  scripts de evento:');
-      v.scripts.forEach(s => lines.push(`    - [${s.component}] ${s.event}: ${s.script.replace(/\s+/g,' ')}`));
-    }
-    lines.push('');
-  });
-
-  return { ok:true, summaryText: lines.join('\n'), raw:{ views, pages } };
-}
-
-/* ==========================================================================
-   PARSER — RELATÓRIO EM PDF
-   ========================================================================== */
-async function parseReportPDF(arrayBuffer, fileName, wantImages){
-  let pdf;
-  try{
-    pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
-  }catch(e){
-    return { ok:false, error:'Não consegui abrir "'+fileName+'" como PDF: ' + e.message, summaryText:'', pageImages:[] };
-  }
-  const pageTexts = [];
-  const pageImages = [];
-  for (let i=1; i<=pdf.numPages; i++){
-    const page = await pdf.getPage(i);
-    const tc = await page.getTextContent();
-    pageTexts.push(tc.items.map(it => it.str).join(' '));
-    if (wantImages){
-      try{
-        const viewport = page.getViewport({scale: 1.15});
-        const canvas = document.createElement('canvas');
-        canvas.width = viewport.width; canvas.height = viewport.height;
-        const ctx = canvas.getContext('2d');
-        await page.render({canvasContext: ctx, viewport}).promise;
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.65);
-        pageImages.push(dataUrl.split(',')[1]);
-      }catch(e){ /* segue sem imagem dessa página */ }
-    }
-  }
-  const lines = [];
-  lines.push(`Arquivo: ${fileName}  |  ${pdf.numPages} página(s)`);
-  lines.push('');
-  pageTexts.forEach((t, i) => {
-    lines.push(`--- página ${i+1} ---`);
-    lines.push(t.trim() || '(sem texto extraível nesta página — pode ser só imagem/print)');
-    lines.push('');
-  });
-  return { ok:true, summaryText: lines.join('\n'), pageImages, raw:{ pageCount: pdf.numPages, pageTexts } };
-}
-
-/* ==========================================================================
-   AGRUPAMENTO DE ARQUIVOS POR ALUNO + MONTAGEM DO DOSSIÊ
-   ========================================================================== */
-/* ==========================================================================
-   AGRUPAMENTO POR ALUNO — a partir do nome padronizado do arquivo
-   (o Code.gs grava tudo achatado em RESPOSTAS_ARQUIVOS/ano/idProva, com
-   nome no formato: {aluno-normalizado}-{idquestao}-{TIPO}[_n].{ext}
-   ex.: joao-da-silva-q3-CLP.smbp, joao-da-silva-q5-SCADA_2.zip
-   O TIPO é sempre o único segmento em CAIXA ALTA do nome — é essa pista
-   que usamos para separar aluno / idQuestao / tipo, mesmo quando o nome
-   do aluno ou o id da questão têm hífen no meio. )
-   ========================================================================== */
-
-// Extrai o conteúdo de UM arquivo pra virar texto que a IA consegue ler.
-// Usa parser especializado quando existe (CLP/.smbp, SCADA-Perspective/.zip,
-// PDF), e cai pra extração genérica pra qualquer outro tipo — inclusive
-// .ipynb (é JSON por baixo: dá pra ler célula por célula de verdade), zips
-// que não são Perspective (extrai todo arquivo de texto de dentro), e
-// qualquer arquivo de texto puro (código, .csv, .md, etc.). Só arquivo
-// genuinamente binário sem parser (imagem, executável...) fica sem texto.
-async function extrairConteudoArquivo(file){
-  const n = file.name.toLowerCase();
-
-  if (n.endsWith('.smbp')){
-    const texto = await file.text();
-    const res = parseSMBP(texto, file.name);
-    return res.ok ? res.summaryText : `[erro ao ler ${file.name}: ${res.error}]`;
-  }
-
-  if (n.endsWith('.pdf')){
-    const buf = await file.arrayBuffer();
-    const res = await parseReportPDF(buf, file.name, false);
-    return res.ok ? res.summaryText : `[erro ao ler ${file.name}: ${res.error}]`;
-  }
-
-  if (n.endsWith('.zip')){
-    const buf = await file.arrayBuffer();
-    const zip = await JSZip.loadAsync(buf);
-    const nomes = Object.keys(zip.files);
-    const ehPerspective = nomes.some((p) => p.includes('com.inductiveautomation.perspective'));
-    if (ehPerspective){
-      const res = await parsePerspectiveZip(buf, file.name);
-      return res.ok ? res.summaryText : `[erro ao ler ${file.name}: ${res.error}]`;
-    }
-    // zip genérico: extrai texto de todo arquivo que pareça texto de dentro dele
-    const extsTexto = /\.(py|js|ts|txt|md|csv|json|xml|html|css|java|c|cpp|r|sql|yaml|yml|ipynb|qet)$/i;
-    const partes = [];
-    for (const nome of nomes){
-      if (zip.files[nome].dir || !extsTexto.test(nome)) continue;
-      if (partes.length >= 40) break; // limite de segurança pra não travar o navegador
-      try{
-        const conteudo = await zip.files[nome].async('string');
-        partes.push(`--- ${nome} ---\n${conteudo.slice(0, 8000)}`);
-      }catch(e){ /* arquivo dentro do zip não pôde ser lido como texto — ignora só ele */ }
-    }
-    return partes.length ? partes.join('\n\n') : `[zip entregue: ${file.name} — nenhum arquivo de texto reconhecido dentro dele]`;
-  }
-
-  if (n.endsWith('.ipynb')){
-    try{
-      const nb = JSON.parse(await file.text());
-      const partes = [];
-      (nb.cells || []).forEach((cell, i) => {
-        const src = Array.isArray(cell.source) ? cell.source.join('') : (cell.source || '');
-        if (!src.trim()) return;
-        partes.push(`[célula ${i + 1} — ${cell.cell_type}]\n${src}`);
-        (cell.outputs || []).forEach((out) => {
-          const txt = out.text || (out.data && out.data['text/plain']);
-          if (txt) partes.push('  saída: ' + (Array.isArray(txt) ? txt.join('') : txt).slice(0, 1000));
-        });
-      });
-      return partes.join('\n\n') || `[notebook ${file.name} sem células com conteúdo]`;
-    }catch(e){
-      return `[erro ao ler notebook ${file.name}: ${e.message}]`;
-    }
-  }
-
-  const extsTexto = ['.py','.js','.ts','.txt','.md','.csv','.json','.xml','.qet','.html','.css','.java','.c','.cpp','.r','.sql','.yaml','.yml'];
-  if (extsTexto.some((e) => n.endsWith(e))){
-    try{ return (await file.text()).slice(0, 20000); }
-    catch(e){ return `[erro ao ler ${file.name}: ${e.message}]`; }
-  }
-
-  return `[arquivo entregue: ${file.name} — formato binário, não foi possível extrair texto para a IA analisar]`;
-}
 
 // Monta o dossiê organizado pelos MESMOS tipos que o professor configurou
 // nas regras de arquivo (não categorias fixas) — funciona pra qualquer
-// disciplina/trabalho, não só CLP+SCADA.
+// disciplina/trabalho, não só CLP+SCADA. Usa extrairConteudoArquivo (rica,
+// do arquivo compartilhado) pra ter tanto o texto pra IA quanto os
+// identificadores estruturados (ids) por "kind", e calcula o crossRefText
+// determinístico do mesmo jeito que o Avaliador.html — o resultado vai
+// dentro de dossie.__crossRefText, uma chave reservada que o Code.gs já
+// sabe reconhecer (montarPromptAutocorrecao_) e nunca trata como um tipo de
+// arquivo comum.
 async function buildDossieSimples(arquivosPorTipo){
   const dossie = {};
   const avisos = [];
+  const idsByKind = {};
   for (const [tipo, arquivos] of Object.entries(arquivosPorTipo)){
     const partes = [];
     for (const file of arquivos){
       try{
-        partes.push(`### ${file.name}\n${await extrairConteudoArquivo(file)}`);
+        const { textoIA, kind, ids } = await extrairConteudoArquivo(file, { includeImages: false });
+        partes.push(`### ${file.name}\n${textoIA}`);
+        if (kind && ids && ids.length){
+          idsByKind[kind] = (idsByKind[kind] || []).concat(ids);
+        }
       }catch(e){
         avisos.push(`Erro ao processar ${file.name}: ${e.message}`);
       }
     }
     if (partes.length) dossie[tipo] = partes.join('\n\n');
   }
+  const crossRefText = buildCrossReferenceText(idsByKind);
+  if (crossRefText) dossie.__crossRefText = crossRefText;
   return { dossie, avisos };
 }
+
 
 function escapeHtml(s){
   return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
