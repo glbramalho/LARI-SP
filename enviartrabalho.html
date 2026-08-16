@@ -355,12 +355,16 @@ function renderCentro(icone, texto, comSpinner){
 
 function renderErro(){
   const msg = MENSAGENS_ERRO[state.erroGeral?.erro] || state.erroGeral?.erro || 'Algo deu errado.';
+  const detalhe = state.erroGeral?.detalhe;
+  const podeTentarNovamente = state.erroGeral?.erro === 'ERRO_AO_AVALIAR';
   return h(`
     <div class="panel center-msg">
       <div class="big-icon">⚠️</div>
       <h2 style="margin-bottom:10px;">Não foi possível continuar</h2>
       <div class="banner err" style="text-align:left;">${escapeHtml(msg)}</div>
+      ${detalhe ? `<div class="banner err" style="text-align:left; margin-top:8px; font-family:var(--font-mono,monospace); font-size:12px; opacity:0.85;">${escapeHtml(detalhe)}</div>` : ''}
       <div class="btn-row" style="justify-content:center; margin-top:16px;">
+        ${podeTentarNovamente ? '<button class="btn teal" id="btnTentarNovamenteAvaliar">↻ Tentar novamente</button>' : ''}
         <button class="btn secondary" id="btnVoltarInicio">← Voltar ao início</button>
       </div>
     </div>
@@ -368,6 +372,7 @@ function renderErro(){
 }
 
 const MENSAGENS_ERRO = {
+  ERRO_AO_AVALIAR: 'A inteligência artificial demorou ou falhou ao avaliar seus arquivos — costuma ser uma instabilidade momentânea da API, não um problema com o que você enviou. Essa tentativa NÃO foi consumida. Aguarde um instante e tente de novo.',
   PRECISA_MATRICULA: 'Não reconhecemos seu e-mail automaticamente. Informe sua matrícula.',
   MATRICULA_NAO_ENCONTRADA: 'Não encontramos essa matrícula no sistema. Confira o número ou fale com o professor.',
   TRABALHO_NAO_ENCONTRADO: 'Esse código de trabalho não existe. Confira o código no Classroom.',
@@ -386,6 +391,10 @@ document.addEventListener('click', (e) => {
     state.tela = 'login';
     state.erroGeral = null;
     render();
+  }
+  if (e.target && e.target.id === 'btnTentarNovamenteAvaliar'){
+    state.erroGeral = null;
+    iniciarEEnviarTentativa();
   }
 });
 
