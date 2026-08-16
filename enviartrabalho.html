@@ -213,7 +213,7 @@ let BACKEND_URL = "";
    horário de Fortaleza) toda vez que este arquivo for editado, ANTES de
    entregar a versão nova. Não precisa tocar em mais nada além desta linha.
    ========================================================================== */
-const ULTIMA_ATUALIZACAO_FRONTEND = "15/08/2026 20:05";
+const ULTIMA_ATUALIZACAO_FRONTEND = "15/08/2026 21:15";
 
 async function carregarMarcadorVersao(){
   const el = document.getElementById('marcadorVersao');
@@ -393,6 +393,7 @@ function renderErro(){
 
 const MENSAGENS_ERRO = {
   ERRO_AO_AVALIAR: 'A inteligência artificial demorou ou falhou ao avaliar seus arquivos — costuma ser uma instabilidade momentânea da API, não um problema com o que você enviou. Essa tentativa NÃO foi consumida. Aguarde um instante e tente de novo.',
+  ERRO_LIMITE_IA: 'O sistema está recebendo muitos pedidos de avaliação agora e atingiu o limite de uso da IA neste minuto. Essa tentativa NÃO foi consumida. Aguarde alguns minutos antes de tentar de novo — insistir na hora não adianta, o limite é por tempo, não por tentativa.',
   PRECISA_MATRICULA: 'Não reconhecemos seu e-mail automaticamente. Informe sua matrícula.',
   MATRICULA_NAO_ENCONTRADA: 'Não encontramos essa matrícula no sistema. Confira o número ou fale com o professor.',
   TRABALHO_NAO_ENCONTRADO: 'Esse código de trabalho não existe. Confira o código no Classroom.',
