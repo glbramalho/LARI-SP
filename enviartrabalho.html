@@ -209,7 +209,7 @@ let BACKEND_URL = "";
    horário de Fortaleza) toda vez que este arquivo for editado, ANTES de
    entregar a versão nova. Não precisa tocar em mais nada além desta linha.
    ========================================================================== */
-const ULTIMA_ATUALIZACAO_FRONTEND = "16/08/2026 14:20";
+const ULTIMA_ATUALIZACAO_FRONTEND = "16/08/2026 17:50";
 
 async function carregarMarcadorVersao(){
   const el = document.getElementById('marcadorVersao');
@@ -268,48 +268,6 @@ async function chamarBackend(action, params, usarPost){
 }
 
 
-/* ==========================================================================
-   DOSSIÊ — usa os parsers/cruzamento de shared/dossie-parsers.vN.js (mesmo
-   arquivo que o Avaliador.html carrega — ver <script src> no <head>). Antes
-   disso, este arquivo tinha uma cópia local simplificada (só texto, sem
-   idsByKind/crossRefText), que foi o motivo do cruzamento automático nunca
-   aparecer na autoavaliação do aluno. Não duplicar essas funções aqui de
-   novo — qualquer ajuste no parser/cruzamento entra no arquivo compartilhado.
-   ========================================================================== */
-
-// Monta o dossiê organizado pelos MESMOS tipos que o professor configurou
-// nas regras de arquivo (não categorias fixas) — funciona pra qualquer
-// disciplina/trabalho, não só CLP+SCADA. Usa extrairConteudoArquivo (rica,
-// do arquivo compartilhado) pra ter tanto o texto pra IA quanto os
-// identificadores estruturados (ids) por "kind", e calcula o crossRefText
-// determinístico do mesmo jeito que o Avaliador.html — o resultado vai
-// dentro de dossie.__crossRefText, uma chave reservada que o Code.gs já
-// sabe reconhecer (montarPromptAutocorrecao_) e nunca trata como um tipo de
-// arquivo comum.
-async function buildDossieSimples(arquivosPorTipo){
-  const dossie = {};
-  const avisos = [];
-  const idsByKind = {};
-  for (const [tipo, arquivos] of Object.entries(arquivosPorTipo)){
-    const partes = [];
-    for (const file of arquivos){
-      try{
-        const { textoIA, kind, ids } = await extrairConteudoArquivo(file, { includeImages: false });
-        partes.push(`### ${file.name}\n${textoIA}`);
-        if (kind && ids && ids.length){
-          idsByKind[kind] = (idsByKind[kind] || []).concat(ids);
-        }
-      }catch(e){
-        avisos.push(`Erro ao processar ${file.name}: ${e.message}`);
-      }
-    }
-    if (partes.length) dossie[tipo] = partes.join('\n\n');
-  }
-  const crossRefText = buildCrossReferenceText(idsByKind);
-  if (crossRefText) dossie.__crossRefText = crossRefText;
-  return { dossie, avisos };
-}
-
 
 function escapeHtml(s){
   return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -332,17 +290,12 @@ const state = {
   idTrabalho: '',
   trabalho: null,          // resultado de getTrabalho
   arquivosPorTipo: {},     // { [tipo]: File[] }
-  tentativa: null,         // {token, numero_tentativa, modo, forcar_confirmacao, motivo_forcar}
-  resultadoIA: null,       // {avaliacoes, notaFinal, pontosFortesGeral, pontosAMelhorarGeral}
-  avisosDossie: [],
+  tentativa: null,         // {token, numero_tentativa, forcar_confirmacao, motivo_forcar, reenvio, reenvio_confirmado_em}
+  relatorio: null,         // {erros_regras, itens_por_tipo, tudo_ok} — de verificarEnvioTrabalho
+  erroContexto: null,      // 'verificacao' | 'confirmacao' — pra saber o que reexecutar no "tentar novamente"
   manifesto: null,
   progressoUpload: [],     // [{filename, tipo, status:'pendente'|'enviando'|'ok'|'erro'}]
   erroGeral: null,
-  chavePropria: {          // avaliação com a chave/modelo do PRÓPRIO aluno —
-    usar: false,            // não passa pela cota compartilhada nem pelo
-    apiKey: '',              // limite diário do servidor. Fica só na
-    model: 'gemini-flash-latest', // memória (não persiste entre sessões).
-  },
 };
 
 function render(){
@@ -354,8 +307,8 @@ function render(){
     carregando: () => renderCentro('⏳', 'Carregando...'),
     trabalho: renderTrabalho,
     retomada: renderRetomada,
-    avaliando: () => renderCentro('🤖', 'A IA está avaliando sua entrega...', true),
-    resultado: renderResultado,
+    verificando: () => renderCentro('🔎', 'Verificando seus arquivos...', true),
+    relatorio: renderRelatorio,
     confirmando: renderConfirmando,
     confirmado: renderConfirmado,
     erro: renderErro,
@@ -377,11 +330,16 @@ function renderCentro(icone, texto, comSpinner){
 function renderErro(){
   const msg = MENSAGENS_ERRO[state.erroGeral?.erro] || state.erroGeral?.erro || 'Algo deu errado.';
   const detalhe = state.erroGeral?.detalhe;
-  const podeTentarNovamente = state.erroGeral?.erro === 'ERRO_AO_AVALIAR';
-  // Nestes dois casos a IA não rodou, mas a tentativa (token) já existe no
-  // servidor — o aluno pode seguir direto pra confirmar a entrega dos
-  // arquivos sem depender da avaliação (prioriza nunca travar a entrega).
-  const podeConfirmarSemIA = (state.erroGeral?.erro === 'ERRO_LIMITE_IA' || state.erroGeral?.erro === 'LIMITE_DIARIO_IA_ATINGIDO') && state.tentativa?.token;
+  // Contingência: qualquer erro que não seja um estado terminal (prazo
+  // expirado, já confirmado, etc.) oferece "tentar de novo" — reexecuta a
+  // etapa (verificação ou confirmação) em que o erro aconteceu, reusando o
+  // mesmo token, em vez de fazer o aluno recomeçar do zero.
+  const ERROS_TERMINAIS = new Set([
+    'ENTREGA_JA_CONFIRMADA', 'TRABALHO_INATIVO', 'TRABALHO_NAO_ENCONTRADO',
+    'ALUNO_NAO_MATRICULADO_NESTA_DISCIPLINA', 'FORA_DO_PRAZO_E_TOLERANCIA',
+    'LIMITE_TENTATIVAS_ATINGIDO', 'MATRICULA_NAO_ENCONTRADA',
+  ]);
+  const podeTentarNovamente = state.erroContexto && state.tentativa?.token && !ERROS_TERMINAIS.has(state.erroGeral?.erro);
   return h(`
     <div class="panel center-msg">
       <div class="big-icon">⚠️</div>
@@ -389,8 +347,7 @@ function renderErro(){
       <div class="banner err" style="text-align:left;">${escapeHtml(msg)}</div>
       ${detalhe ? `<div class="banner err" style="text-align:left; margin-top:8px; font-family:var(--font-mono,monospace); font-size:12px; opacity:0.85;">${escapeHtml(detalhe)}</div>` : ''}
       <div class="btn-row" style="justify-content:center; margin-top:16px;">
-        ${podeTentarNovamente ? '<button class="btn teal" id="btnTentarNovamenteAvaliar">↻ Tentar novamente</button>' : ''}
-        ${podeConfirmarSemIA ? '<button class="btn teal" id="btnConfirmarSemIA">Confirmar entrega mesmo assim →</button>' : ''}
+        ${podeTentarNovamente ? '<button class="btn teal" id="btnTentarNovamenteGeral">↻ Tentar novamente</button>' : ''}
         <button class="btn secondary" id="btnVoltarInicio">← Voltar ao início</button>
       </div>
     </div>
@@ -398,18 +355,14 @@ function renderErro(){
 }
 
 const MENSAGENS_ERRO = {
-  ERRO_AO_AVALIAR: 'A inteligência artificial demorou ou falhou ao avaliar seus arquivos — costuma ser uma instabilidade momentânea da API, não um problema com o que você enviou. Essa tentativa NÃO foi consumida. Aguarde um instante e tente de novo.',
-  ERRO_LIMITE_IA: 'O sistema está recebendo muitos pedidos de avaliação agora e atingiu o limite de uso da IA neste minuto. Essa tentativa NÃO foi consumida. Aguarde alguns minutos antes de tentar de novo — insistir na hora não adianta, o limite é por tempo, não por tentativa. Se for urgente, você pode confirmar a entrega dos arquivos mesmo sem o resultado da IA, ou usar sua própria chave (opção "Usar minha própria chave de IA" antes de testar).',
-  LIMITE_DIARIO_IA_ATINGIDO: 'Você já usou sua avaliação por IA de hoje (a chave é compartilhada com toda a turma). Você ainda PODE confirmar a entrega dos seus arquivos normalmente, mesmo sem rodar a IA de novo — ou volte amanhã pra testar. Se quiser testar mais vezes hoje, use sua própria chave de IA (opção antes do botão "Testar com IA").',
   PRECISA_MATRICULA: 'Não reconhecemos seu e-mail automaticamente. Informe sua matrícula.',
   MATRICULA_NAO_ENCONTRADA: 'Não encontramos essa matrícula no sistema. Confira o número ou fale com o professor.',
   TRABALHO_NAO_ENCONTRADO: 'Esse código de trabalho não existe. Confira o código no Classroom.',
   TRABALHO_INATIVO: 'Este trabalho não está mais aceitando envios no momento.',
   ALUNO_NAO_MATRICULADO_NESTA_DISCIPLINA: 'Sua matrícula não está vinculada a esta disciplina.',
-  ENTREGA_JA_CONFIRMADA: 'Sua entrega para este trabalho já foi confirmada — não é possível enviar de novo.',
+  ENTREGA_JA_CONFIRMADA: 'Sua entrega para este trabalho já foi confirmada.',
   FORA_DO_PRAZO_E_TOLERANCIA: 'O prazo deste trabalho (e o período de tolerância) já passou. Fale com o professor se precisar de uma exceção.',
   LIMITE_TENTATIVAS_ATINGIDO: 'Você já usou todas as suas tentativas para este trabalho.',
-  REGRAS_ARQUIVO_NAO_ATENDIDAS: 'Os arquivos enviados não atendem às regras deste trabalho.',
   BACKEND_INDISPONIVEL: 'Não foi possível conectar ao servidor. Verifique sua internet e tente de novo.',
   FALHA_DE_REDE: 'Falha de conexão. Verifique sua internet e tente de novo.',
 };
@@ -420,13 +373,10 @@ document.addEventListener('click', (e) => {
     state.erroGeral = null;
     render();
   }
-  if (e.target && e.target.id === 'btnTentarNovamenteAvaliar'){
+  if (e.target && e.target.id === 'btnTentarNovamenteGeral'){
     state.erroGeral = null;
-    iniciarEEnviarTentativa();
-  }
-  if (e.target && e.target.id === 'btnConfirmarSemIA'){
-    state.erroGeral = null;
-    iniciarConfirmacao();
+    if (state.erroContexto === 'confirmacao') iniciarConfirmacao();
+    else iniciarVerificacao();
   }
 });
 
@@ -546,7 +496,7 @@ async function carregarTrabalho(){
     });
     if (rp.ok){
       state.tentativa = { token: rp.token, numero_tentativa: rp.numero_tentativa, forcar_confirmacao: true, motivo_forcar: 'tentativa_pendente' };
-      state.resultadoIA = rp.resultado;
+      state.relatorio = rp.relatorio;
       state.arquivosPorTipo = {};
       state.tela = 'retomada';
       render();
@@ -564,18 +514,17 @@ async function carregarTrabalho(){
    recurso, bem sinalizado) confirmar mesmo sem arquivo nenhum.
    ========================================================================== */
 function renderRetomada(){
-  const r = state.resultadoIA;
+  const rel = state.relatorio;
   const t = state.trabalho;
-  const nota = r ? (Number(r.notaFinal) || 0) : null;
 
   const panel = h(`
     <div>
-      <div class="banner warn">⚠ Você tem uma avaliação da <strong>tentativa ${state.tentativa.numero_tentativa}</strong> que não chegou a virar entrega definitiva — provavelmente a aba fechou antes de confirmar. Esta é a sua última chance para este trabalho.</div>
+      <div class="banner warn">⚠ Você tem uma verificação da <strong>tentativa ${state.tentativa.numero_tentativa}</strong> que não chegou a virar entrega definitiva — provavelmente a aba fechou antes de confirmar. Esta é a sua última chance para este trabalho.</div>
 
-      ${r ? `
+      ${rel ? `
         <div class="panel" style="text-align:center;">
-          <div class="grade-pill ${nota >= 7 ? 'high' : nota >= 5 ? 'mid' : 'low'}">${nota.toFixed(1)}</div>
-          <div class="desc" style="margin-top:6px; margin-bottom:0;">nota dessa avaliação</div>
+          <div class="big-icon">${rel.tudo_ok ? '✅' : '⚠️'}</div>
+          <div class="desc" style="margin-top:0;">${rel.tudo_ok ? 'Aquela verificação não encontrou pendências.' : 'Aquela verificação encontrou pendências — reveja os arquivos antes de reanexar.'}</div>
         </div>
       ` : ''}
 
@@ -608,7 +557,7 @@ function renderRetomada(){
     state.progressoUpload = [];
     render();
     const r2 = await chamarBackend('confirmarSemArquivos', { token: state.tentativa.token }, true);
-    if (!r2.ok){ state.erroGeral = r2; state.tela = 'erro'; render(); return; }
+    if (!r2.ok){ state.erroContexto = 'confirmacao'; state.erroGeral = r2; state.tela = 'erro'; render(); return; }
     state.tela = 'confirmado';
     render();
   });
@@ -651,40 +600,19 @@ function renderTrabalho(){
 
       <div class="panel">
         <h2>Critérios de avaliação</h2>
-        <div class="desc">A IA avalia sua entrega contra cada um destes critérios.</div>
+        <div class="desc">O professor avalia sua entrega contra cada um destes critérios (avaliação prévia no Avaliador, feita depois do envio).</div>
         <div id="critListTrabalho"></div>
       </div>
 
       <div class="panel">
-        <h2>Arquivos</h2>
-        <div class="desc">Anexe os arquivos pedidos em cada categoria abaixo.</div>
+        <h2>Arquivos a enviar</h2>
+        <div class="desc">Cada categoria abaixo mostra exatamente o formato aceito, quantos arquivos e as exigências específicas daquele tipo — leia com atenção antes de anexar.</div>
         <div id="uploadSlots"></div>
-      </div>
-
-      <div class="panel">
-        <details ${state.chavePropria.usar ? 'open' : ''}>
-          <summary style="cursor:pointer; font-size:13.5px; color:var(--muted);">⚙ Usar minha própria chave de IA (opcional)</summary>
-          <div style="margin-top:10px;">
-            <div class="desc" style="margin-bottom:10px;">A chave da escola tem uso limitado por toda a turma (por isso o limite de 1 avaliação/dia por padrão). Se você tiver sua própria chave gratuita do Gemini (<a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>), pode usá-la aqui — sua avaliação não conta no limite compartilhado. Sem chave própria, tudo continua funcionando normalmente com a chave da escola.</div>
-            <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:10px;">
-              <input type="checkbox" id="chkChavePropria" ${state.chavePropria.usar ? 'checked' : ''}>
-              Usar minha chave nesta tentativa
-            </label>
-            <div class="field">
-              <label>Sua API key do Gemini</label>
-              <input type="password" id="inputChavePropria" placeholder="AIza..." value="${escapeHtml(state.chavePropria.apiKey)}" autocomplete="off">
-            </div>
-            <div class="field">
-              <label>Modelo</label>
-              <input type="text" id="inputModeloProprio" placeholder="gemini-flash-latest" value="${escapeHtml(state.chavePropria.model)}">
-            </div>
-          </div>
-        </details>
       </div>
 
       ${tentativasRestantes <= 0
         ? `<div class="banner err">Você já usou todas as suas tentativas para este trabalho. Fale com o professor se precisar de uma exceção.</div>`
-        : `<div class="btn-row"><button class="btn teal full" id="btnTestarIA" style="width:100%;">▶ Testar com IA</button></div>`}
+        : `<div class="btn-row"><button class="btn teal full" id="btnVerificar" style="width:100%;">🔎 Verificar arquivos</button></div>`}
     </div>
   `);
 
@@ -703,15 +631,8 @@ function renderTrabalho(){
   const slotsWrap = panel.querySelector('#uploadSlots');
   (t.regras_arquivos || []).forEach((regra) => slotsWrap.appendChild(renderUploadSlot(regra)));
 
-  const btnTestar = panel.querySelector('#btnTestarIA');
-  if (btnTestar) btnTestar.addEventListener('click', iniciarEEnviarTentativa);
-
-  const chkChave = panel.querySelector('#chkChavePropria');
-  if (chkChave) chkChave.addEventListener('change', e => { state.chavePropria.usar = e.target.checked; });
-  const inputChave = panel.querySelector('#inputChavePropria');
-  if (inputChave) inputChave.addEventListener('input', e => { state.chavePropria.apiKey = e.target.value; });
-  const inputModelo = panel.querySelector('#inputModeloProprio');
-  if (inputModelo) inputModelo.addEventListener('input', e => { state.chavePropria.model = e.target.value; });
+  const btnVerificar = panel.querySelector('#btnVerificar');
+  if (btnVerificar) btnVerificar.addEventListener('click', iniciarVerificacao);
 
   return panel;
 }
@@ -735,6 +656,7 @@ function renderUploadSlot(regra){
           <input type="file" style="display:none;" ${max > 1 ? 'multiple' : ''} accept="${escapeHtml(accept)}" class="slotFileInput">
         </label>
       </div>
+      ${regra.enunciado ? `<div class="desc" style="white-space:pre-wrap; font-size:13px; background:var(--bg-alt,#f6f5f1); border-radius:8px; padding:10px 12px; margin:8px 0;">${escapeHtml(regra.enunciado)}</div>` : ''}
       <div class="chips"></div>
     </div>
   `);
@@ -782,54 +704,61 @@ function renderUploadSlot(regra){
 }
 
 /* ==========================================================================
-   AVALIAÇÃO COM CHAVE PRÓPRIA DO ALUNO — chamada direto do navegador dele
-   pro Gemini, sem passar pelo servidor/cota compartilhada. Mesmo critério
-   de erro transitório usado no Avaliador.html, pra consistência.
+   EXTRAÇÃO MÍNIMA DE TEXTO — só o necessário pra conferir o "ITENS:" do
+   enunciado (Relatório em PDF, Python em notebook, ou qualquer outro tipo
+   que o professor tenha configurado com essa exigência). Nada de identificar
+   tipo por conteúdo, nada de cruzamento entre arquivos — isso agora é
+   trabalho exclusivo do Avaliador.html (com IA, depois do envio).
    ========================================================================== */
-function isErroTransitorioGeminiAluno_(err){
-  const msg = String(err && err.message || '');
-  if (/Gemini respondeu (503|429|500|502|504)/.test(msg)) return true;
-  if (/Falha de rede ao chamar a API do Gemini/.test(msg)) return true;
-  return false;
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+async function extrairTextoPDF_(file){
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  let texto = '';
+  for (let p = 1; p <= pdf.numPages; p++){
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    texto += content.items.map((it) => it.str).join(' ') + '\n';
+  }
+  return texto;
 }
 
-async function geminiGenerateAluno_(promptTexto, systemInstruction, apiKey, model){
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
-  const body = {
-    contents: [{ role: 'user', parts: [{ text: promptTexto }] }],
-    systemInstruction: { parts: [{ text: systemInstruction }] },
-    generationConfig: { temperature: 0.15, responseMimeType: 'application/json' },
-  };
-  const MAX_TENTATIVAS = 4;
-  let ultimoErro;
-  for (let tentativa = 0; tentativa < MAX_TENTATIVAS; tentativa++){
-    if (tentativa > 0) await new Promise(r => setTimeout(r, 1000 * Math.pow(2, tentativa - 1)));
-    try{
-      const resp = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-        body: JSON.stringify(body),
-      });
-      if (!resp.ok){
-        const txt = await resp.text().catch(() => '');
-        throw new Error(`Gemini respondeu ${resp.status}: ${txt.slice(0, 300)}`);
-      }
-      const data = await resp.json();
-      const texto = (data.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
-      if (!texto) throw new Error('RESPOSTA_VAZIA_DA_IA');
-      return JSON.parse(texto);
-    }catch(e){
-      ultimoErro = e;
-      if (!isErroTransitorioGeminiAluno_(e)) throw e;
-    }
+async function extrairTextoIpynb_(file){
+  try{
+    const json = JSON.parse(await file.text());
+    return (json.cells || [])
+      .map((c) => (Array.isArray(c.source) ? c.source.join('') : (c.source || '')))
+      .join('\n\n');
+  }catch(e){
+    return '';
   }
-  throw ultimoErro;
+}
+
+// Mesma regra do backend (extrairItensDoEnunciado_/Code.gs): só precisa
+// extrair texto pros tipos cujo enunciado tiver o marcador "ITENS:".
+function precisaExtrairTexto_(regra){
+  return /itens\s*:/i.test(regra.enunciado || '');
+}
+
+async function extrairTextoDoTipo_(regra){
+  const arquivos = state.arquivosPorTipo[regra.tipo] || [];
+  if (!arquivos.length) return '';
+  const textos = [];
+  for (const f of arquivos){
+    const nome = f.name.toLowerCase();
+    if (nome.endsWith('.pdf')) textos.push(await extrairTextoPDF_(f).catch(() => ''));
+    else if (nome.endsWith('.ipynb')) textos.push(await extrairTextoIpynb_(f));
+    else textos.push(await f.text().catch(() => ''));
+  }
+  return textos.join('\n\n');
 }
 
 /* ==========================================================================
-   TENTATIVA — iniciar + extrair dossiê localmente + avaliar
+   VERIFICAÇÃO — iniciar tentativa (ou reusar) + extrair texto localmente
+   (só dos tipos que precisam) + verificação determinística no servidor.
    ========================================================================== */
-async function iniciarEEnviarTentativa(){
+async function iniciarVerificacao(){
   const regras = state.trabalho.regras_arquivos || [];
   const faltando = regras.filter((r) => (state.arquivosPorTipo[r.tipo] || []).length < Number(r.min || 0));
   if (faltando.length){
@@ -837,129 +766,138 @@ async function iniciarEEnviarTentativa(){
     return;
   }
 
-  const usarChavePropria = state.chavePropria.usar;
-  if (usarChavePropria && !state.chavePropria.apiKey.trim()){
-    alert('Marque "usar minha chave" mas não preencheu a API key. Preencha a chave ou desmarque a opção.');
-    return;
-  }
-
-  state.tela = 'avaliando';
+  state.tela = 'verificando';
   render();
 
-  const rInicio = await chamarBackend('iniciarTentativaTrabalho', {
-    id_trabalho: state.idTrabalho, id_token: state.idToken,
-    matricula_selecionada: state.matriculaDigitada || undefined,
-  });
-  if (!rInicio.ok){ state.erroGeral = rInicio; state.tela = 'erro'; render(); return; }
-  state.tentativa = rInicio;
+  if (!state.tentativa){
+    const rInicio = await chamarBackend('iniciarTentativaTrabalho', {
+      id_trabalho: state.idTrabalho, id_token: state.idToken,
+      matricula_selecionada: state.matriculaDigitada || undefined,
+    });
+    if (!rInicio.ok){ state.erroContexto = 'verificacao'; state.erroGeral = rInicio; state.tela = 'erro'; render(); return; }
 
-  const { dossie, avisos } = await buildDossieSimples(state.arquivosPorTipo);
-  state.avisosDossie = avisos;
-
-  if (usarChavePropria){
-    const rPrompt = await chamarBackend('montarPromptTentativaTrabalho', {
-      token: rInicio.token, dossie_texto_json: JSON.stringify(dossie),
-    }, true);
-    if (!rPrompt.ok){ state.erroGeral = rPrompt; state.tela = 'erro'; render(); return; }
-
-    let resultado;
-    try{
-      resultado = await geminiGenerateAluno_(rPrompt.prompt, rPrompt.system_instruction, state.chavePropria.apiKey.trim(), state.chavePropria.model.trim() || 'gemini-flash-latest');
-    }catch(e){
-      state.erroGeral = { erro: 'ERRO_AO_AVALIAR', detalhe: '(usando sua chave própria) ' + e.message };
-      state.tela = 'erro'; render(); return;
+    if (rInicio.reenvio){
+      const aceita = confirm(
+        'Você já tem uma entrega confirmada para este trabalho. Continuar vai SUBSTITUIR os arquivos entregues anteriormente (a versão antiga fica guardada, mas só o professor acessa). Deseja continuar?'
+      );
+      if (!aceita){ state.tela = 'trabalho'; render(); return; }
     }
+    state.tentativa = rInicio;
+  }
 
-    const rRegistrar = await chamarBackend('registrarResultadoTentativaTrabalho', {
-      token: rInicio.token, resultado_json: JSON.stringify(resultado), dossie_texto_json: JSON.stringify(dossie),
-    }, true);
-    if (!rRegistrar.ok){ state.erroGeral = rRegistrar; state.tela = 'erro'; render(); return; }
+  const manifesto = [];
+  Object.entries(state.arquivosPorTipo).forEach(([tipo, files]) => {
+    files.forEach((f) => manifesto.push({ tipo, filename: f.name }));
+  });
 
-    state.resultadoIA = rRegistrar.resultado;
-    state.tela = 'resultado';
+  const textosPorTipo = {};
+  for (const regra of regras){
+    if (precisaExtrairTexto_(regra)) textosPorTipo[regra.tipo] = await extrairTextoDoTipo_(regra);
+  }
+
+  const rVerificar = await chamarBackend('verificarEnvioTrabalho', {
+    token: state.tentativa.token,
+    manifesto_arquivos_json: JSON.stringify(manifesto),
+    textos_por_tipo_json: JSON.stringify(textosPorTipo),
+  }, true);
+
+  if (!rVerificar.ok){
+    if (rVerificar.erro === 'TENTATIVA_JA_FINALIZADA'){
+      // provavelmente essa verificação já tinha rodado e só a resposta se
+      // perdeu no caminho de volta — busca o relatório já calculado em vez
+      // de tratar como uma falha nova.
+      const rp = await chamarBackend('retomarTentativaPendente', {
+        id_trabalho: state.idTrabalho, id_token: state.idToken,
+        matricula_selecionada: state.matriculaDigitada || undefined,
+      });
+      if (rp.ok && rp.relatorio){
+        state.tentativa.token = rp.token;
+        state.relatorio = rp.relatorio;
+        state.tela = 'relatorio';
+        render();
+        return;
+      }
+    }
+    state.erroContexto = 'verificacao';
+    state.erroGeral = rVerificar;
+    state.tela = 'erro';
     render();
     return;
   }
 
-  const rAvaliar = await chamarBackend('avaliarTentativaTrabalho', {
-    token: rInicio.token, dossie_texto_json: JSON.stringify(dossie),
-  }, true);
-  if (!rAvaliar.ok){ state.erroGeral = rAvaliar; state.tela = 'erro'; render(); return; }
-
-  state.resultadoIA = rAvaliar.resultado;
-  state.tela = 'resultado';
+  state.manifesto = manifesto;
+  state.relatorio = rVerificar.relatorio;
+  state.tela = 'relatorio';
   render();
 }
 
 /* ==========================================================================
-   RESULTADO — nota, critérios, e a escolha (ou obrigação) de confirmar
+   RELATÓRIO — regras + itens obrigatórios por tipo, atendidos/ausentes.
+   NUNCA bloqueia o botão de entrega — mostra aviso quando há pendência,
+   mas quem decide se entrega mesmo assim é o aluno.
    ========================================================================== */
-function renderResultado(){
-  const r = state.resultadoIA;
+function renderRelatorio(){
+  const rel = state.relatorio;
   const t = state.tentativa;
-  const nota = Number(r.notaFinal) || 0;
-  const notaClass = nota >= 7 ? 'high' : nota >= 5 ? 'mid' : 'low';
+
+  const linhasRegra = (rel.erros_regras || [])
+    .map((er) => `<div class="crit-row" style="border-color:var(--red);">✕ ${escapeHtml(er)}</div>`)
+    .join('');
+
+  const blocosItens = Object.entries(rel.itens_por_tipo || {}).map(([tipo, itens]) => `
+    <div class="panel">
+      <h2>${escapeHtml(tipo)} — itens exigidos no enunciado</h2>
+      <div>${itens.map((it) => `
+        <div class="crit-row" style="border-color:${it.ok ? 'var(--teal)' : 'var(--red)'};">
+          <div class="top"><div>${it.ok ? '✓' : '✕'} ${escapeHtml(it.item)}</div></div>
+          ${!it.ok && it.motivo ? `<div class="desc" style="margin:4px 0 0; color:var(--red);">${escapeHtml(it.motivo)}</div>` : ''}
+        </div>
+      `).join('')}</div>
+    </div>
+  `).join('');
 
   const panel = h(`
     <div>
       <div class="panel" style="text-align:center;">
         <div class="desc">Tentativa ${t.numero_tentativa} de ${state.trabalho.tentativas_limite}</div>
-        <div class="grade-pill ${notaClass}">${nota.toFixed(1)}</div>
-        <div class="desc" style="margin-top:6px; margin-bottom:0;">nota desta tentativa</div>
+        <div class="big-icon">${rel.tudo_ok ? '✅' : '⚠️'}</div>
+        <div class="desc" style="margin-top:0;">${rel.tudo_ok
+          ? 'Tudo certo — todas as regras e itens obrigatórios foram encontrados.'
+          : 'Há pendências abaixo. Você AINDA PODE confirmar a entrega mesmo assim — revise a lista com atenção antes de decidir.'}</div>
       </div>
-
-      <div class="panel">
-        <h2>Pontos fortes</h2>
-        <div class="desc" style="margin-bottom:0;">${escapeHtml(r.pontosFortesGeral || '')}</div>
-      </div>
-      <div class="panel">
-        <h2>Pontos a melhorar</h2>
-        <div class="desc" style="margin-bottom:0;">${escapeHtml(r.pontosAMelhorarGeral || '')}</div>
-      </div>
-
-      <div class="panel">
-        <h2>Por critério</h2>
-        <div id="critListResultado"></div>
-      </div>
-
-      ${state.avisosDossie.length ? `<div class="banner warn">Alguns arquivos não puderam ser lidos completamente: ${escapeHtml(state.avisosDossie.join('; '))}</div>` : ''}
-
+      ${linhasRegra ? `<div class="panel"><h2>Regras de arquivo</h2>${linhasRegra}</div>` : ''}
+      ${blocosItens}
       <div id="acaoFinal"></div>
     </div>
   `);
 
-  const critWrap = panel.querySelector('#critListResultado');
-  (state.trabalho.criterios || []).forEach((c) => {
-    const a = (r.avaliacoes || []).find((x) => x.id === c.id) || { status: 'nao_atendido', evidencia: '', comentario: '' };
-    critWrap.appendChild(h(`
-      <div class="crit-row">
-        <div class="top">
-          <div><div class="cat">${escapeHtml(c.categoria)}</div><div class="crit-text">${escapeHtml(c.criterio)}</div></div>
-          <span class="status-pill ${escapeHtml(a.status)}">${escapeHtml(String(a.status).replace('_', ' '))}</span>
-        </div>
-        <div class="evidence-box">${escapeHtml(a.evidencia || '')}</div>
-        ${a.comentario ? `<div class="desc" style="margin-top:6px; margin-bottom:0;">${escapeHtml(a.comentario)}</div>` : ''}
-      </div>
-    `));
-  });
-
   const acaoWrap = panel.querySelector('#acaoFinal');
+
+  // TODO: o texto exato do aviso antes da entrega definitiva com pendência
+  // ainda vai ser definido — este é um texto provisório.
+  const confirmarComAviso = () => {
+    if (!rel.tudo_ok && !confirm('Existem itens não localizados ou regras não atendidas na sua entrega (veja a lista acima). Você pode confirmar mesmo assim, mas isso pode afetar sua avaliação. Deseja confirmar a entrega definitiva mesmo assim?')) return;
+    iniciarConfirmacao();
+  };
+
   if (t.forcar_confirmacao){
     const motivo = t.motivo_forcar === 'limite_atingido'
       ? 'Essa era sua última tentativa disponível.'
-      : 'Você está no período de tolerância do prazo.';
-    acaoWrap.appendChild(h(`<div class="banner warn">${motivo} Este resultado já vai virar sua <strong>entrega definitiva</strong> — confirme abaixo.</div>`));
+      : t.motivo_forcar === 'tolerancia_prazo'
+        ? 'Você está no período de tolerância do prazo.'
+        : 'Essa verificação estava pendente de confirmação.';
+    acaoWrap.appendChild(h(`<div class="banner warn">${motivo} Este envio já vai virar sua <strong>entrega definitiva</strong> — confirme abaixo.</div>`));
     const row = h(`<div class="btn-row"></div>`);
     const btn = h(`<button class="btn teal full" style="width:100%;">Confirmar entrega definitiva</button>`);
-    btn.addEventListener('click', iniciarConfirmacao);
+    btn.addEventListener('click', confirmarComAviso);
     row.appendChild(btn);
     acaoWrap.appendChild(row);
   } else {
     const row = h(`<div class="btn-row"></div>`);
-    const btnNovo = h(`<button class="btn secondary">↻ Enviar novo teste</button>`);
-    btnNovo.addEventListener('click', () => { state.tela = 'trabalho'; render(); });
-    const btnConfirmar = h(`<button class="btn teal">Confirmar entrega definitiva</button>`);
-    btnConfirmar.addEventListener('click', iniciarConfirmacao);
+    const btnNovo = h(`<button class="btn secondary">↻ Ajustar arquivos e verificar de novo</button>`);
+    btnNovo.addEventListener('click', () => { state.tentativa = null; state.tela = 'trabalho'; render(); });
+    const btnConfirmar = h(`<button class="btn teal">Confirmar entrega definitiva →</button>`);
+    btnConfirmar.addEventListener('click', confirmarComAviso);
     row.appendChild(btnNovo);
     row.appendChild(btnConfirmar);
     acaoWrap.appendChild(row);
@@ -995,17 +933,17 @@ async function iniciarConfirmacao(){
   Object.entries(state.arquivosPorTipo).forEach(([tipo, files]) => {
     files.forEach((f) => itens.push({ tipo, file: f }));
   });
-  const manifesto = itens.map((x) => ({ tipo: x.tipo, filename: x.file.name }));
 
+  // O manifesto já foi validado e salvo no servidor durante verificarEnvioTrabalho
+  // — aqui só precisamos do token; o servidor atribui o índice sequencial
+  // por tipo e, se for reenvio, arquiva a entrega anterior antes de aceitar
+  // qualquer upload novo.
   const rIniciar = await chamarBackend('iniciarEntregaDefinitivaTrabalho', {
-    token: state.tentativa.token, manifesto_arquivos_json: JSON.stringify(manifesto),
+    token: state.tentativa.token,
   }, true);
   if (!rIniciar.ok){
-    if (rIniciar.erro === 'REGRAS_ARQUIVO_NAO_ATENDIDAS'){
-      state.erroGeral = { erro: 'Os arquivos enviados não atendem às regras deste trabalho: ' + (rIniciar.detalhes || []).join(' | ') + '. Essa tentativa foi consumida — envie uma nova.' };
-    } else {
-      state.erroGeral = rIniciar;
-    }
+    state.erroContexto = 'confirmacao';
+    state.erroGeral = rIniciar;
     state.tela = 'erro';
     render();
     return;
@@ -1029,10 +967,11 @@ async function iniciarConfirmacao(){
   const rFinalizar = await chamarBackend('finalizarEntregaDefinitivaTrabalho', { token: state.tentativa.token });
   if (!rFinalizar.ok){
     if (rFinalizar.erro === 'ARQUIVOS_FALTANDO'){
-      state.erroGeral = { erro: 'Alguns arquivos não foram recebidos corretamente: ' + (rFinalizar.faltando || []).map((f) => f.filename).join(', ') + '. Recarregue a página e tente reenviar.' };
+      state.erroGeral = { erro: 'ARQUIVOS_FALTANDO', detalhe: 'Alguns arquivos não foram recebidos corretamente: ' + (rFinalizar.faltando || []).map((f) => f.filename).join(', ') + '. Tente novamente — os arquivos que já foram recebidos não precisam ser reenviados do zero, mas por segurança a entrega inteira será reconferida.' };
     } else {
       state.erroGeral = rFinalizar;
     }
+    state.erroContexto = 'confirmacao';
     state.tela = 'erro';
     render();
     return;
