@@ -209,7 +209,7 @@ let BACKEND_URL = "";
    horário de Fortaleza) toda vez que este arquivo for editado, ANTES de
    entregar a versão nova. Não precisa tocar em mais nada além desta linha.
    ========================================================================== */
-const ULTIMA_ATUALIZACAO_FRONTEND = "16/08/2026 19:30";
+const ULTIMA_ATUALIZACAO_FRONTEND = "16/08/2026 20:15";
 
 async function carregarMarcadorVersao(){
   const el = document.getElementById('marcadorVersao');
@@ -850,10 +850,18 @@ function renderRelatorio(){
   const rel = state.relatorio;
   const t = state.tentativa;
 
-  const linhasChecklistRegras = (rel.checklist_regras || []).map((c) => `
-    <div class="crit-row" style="border-color:${c.ok ? 'var(--teal)' : 'var(--red)'};">
-      <div class="top"><div>${c.ok ? '✓' : '✕'} ${escapeHtml(c.tipo)} — ${c.quantidade} arquivo(s): ${escapeHtml((c.arquivos||[]).join(', ') || '(nenhum)')}</div></div>
-      ${!c.ok ? c.problemas.map((p) => `<div class="desc" style="margin:4px 0 0; color:var(--red);">${escapeHtml(p)}</div>`).join('') : ''}
+  const blocosChecklist = (rel.checklist_regras || []).map((c) => `
+    <div class="panel">
+      <h2>${c.ok ? '✓' : '✕'} ${escapeHtml(c.tipo)}</h2>
+      <div class="crit-row" style="border-color:${c.quantidade.ok ? 'var(--teal)' : 'var(--red)'};">
+        <div class="top"><div>${c.quantidade.ok ? '✓' : '✕'} Quantidade: ${c.quantidade.enviado} enviado(s) — esperado ${escapeHtml(c.quantidade.esperado)}</div></div>
+      </div>
+      ${(c.arquivos || []).map((a) => `
+        <div class="crit-row" style="border-color:${a.ok ? 'var(--teal)' : 'var(--red)'};">
+          <div class="top"><div>${a.ok ? '✓' : '✕'} ${escapeHtml(a.filename)}</div></div>
+          ${a.checks.map((chk) => `<div class="desc" style="margin:2px 0 0; color:${chk.ok ? 'var(--muted)' : 'var(--red)'};">${chk.ok ? '✓' : '✕'} ${escapeHtml(chk.label)}${chk.detalhe ? ': ' + escapeHtml(chk.detalhe) : ''}</div>`).join('')}
+        </div>
+      `).join('')}
     </div>
   `).join('');
 
@@ -875,13 +883,12 @@ function renderRelatorio(){
         <div class="desc">Tentativa ${t.numero_tentativa} de ${state.trabalho.tentativas_limite}</div>
         <div class="big-icon">${rel.tudo_ok ? '✅' : '⚠️'}</div>
         <div class="desc" style="margin-top:0;">${rel.tudo_ok
-          ? 'Tudo certo — todas as regras e itens obrigatórios foram encontrados.'
-          : 'Há pendências abaixo. Você AINDA PODE confirmar a entrega mesmo assim — revise a lista com atenção antes de decidir.'}</div>
+          ? 'Conferência automática de FORMATO concluída sem pendências: arquivos certos, quantidades certas, itens exigidos localizados no texto.'
+          : 'Há pendências na conferência automática — veja o checklist abaixo. Você AINDA PODE confirmar a entrega mesmo assim.'}</div>
+        <div class="desc" style="margin-top:6px; font-size:12.5px; font-style:italic;">Isso é só uma conferência automática de formato — não avalia a qualidade ou o conteúdo do seu trabalho. Essa avaliação é feita pelo professor depois do envio.</div>
       </div>
-      <div class="panel">
-        <h2>Checklist de arquivos</h2>
-        ${linhasChecklistRegras}
-      </div>
+      <div class="panel"><h2>Checklist de arquivos</h2></div>
+      ${blocosChecklist}
       ${blocosItens}
       <div id="acaoFinal"></div>
     </div>
