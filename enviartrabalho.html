@@ -209,7 +209,7 @@ let BACKEND_URL = "";
    horário de Fortaleza) toda vez que este arquivo for editado, ANTES de
    entregar a versão nova. Não precisa tocar em mais nada além desta linha.
    ========================================================================== */
-const ULTIMA_ATUALIZACAO_FRONTEND = "16/08/2026 17:50";
+const ULTIMA_ATUALIZACAO_FRONTEND = "16/08/2026 19:30";
 
 async function carregarMarcadorVersao(){
   const el = document.getElementById('marcadorVersao');
@@ -293,6 +293,7 @@ const state = {
   tentativa: null,         // {token, numero_tentativa, forcar_confirmacao, motivo_forcar, reenvio, reenvio_confirmado_em}
   relatorio: null,         // {erros_regras, itens_por_tipo, tudo_ok} — de verificarEnvioTrabalho
   erroContexto: null,      // 'verificacao' | 'confirmacao' — pra saber o que reexecutar no "tentar novamente"
+  progressoVerificacao: '', // mensagem de status exibida durante a tela "verificando"
   manifesto: null,
   progressoUpload: [],     // [{filename, tipo, status:'pendente'|'enviando'|'ok'|'erro'}]
   erroGeral: null,
@@ -307,7 +308,7 @@ function render(){
     carregando: () => renderCentro('⏳', 'Carregando...'),
     trabalho: renderTrabalho,
     retomada: renderRetomada,
-    verificando: () => renderCentro('🔎', 'Verificando seus arquivos...', true),
+    verificando: () => renderCentro('🔎', state.progressoVerificacao || 'Verificando seus arquivos...', true),
     relatorio: renderRelatorio,
     confirmando: renderConfirmando,
     confirmado: renderConfirmado,
@@ -767,6 +768,7 @@ async function iniciarVerificacao(){
   }
 
   state.tela = 'verificando';
+  state.progressoVerificacao = 'Iniciando verificação...';
   render();
 
   if (!state.tentativa){
@@ -792,8 +794,16 @@ async function iniciarVerificacao(){
 
   const textosPorTipo = {};
   for (const regra of regras){
-    if (precisaExtrairTexto_(regra)) textosPorTipo[regra.tipo] = await extrairTextoDoTipo_(regra);
+    if (precisaExtrairTexto_(regra)){
+      const arquivos = state.arquivosPorTipo[regra.tipo] || [];
+      state.progressoVerificacao = `Lendo ${arquivos.length} arquivo(s) de ${regra.tipo}...`;
+      render();
+      textosPorTipo[regra.tipo] = await extrairTextoDoTipo_(regra);
+    }
   }
+
+  state.progressoVerificacao = 'Conferindo regras e itens do enunciado...';
+  render();
 
   const rVerificar = await chamarBackend('verificarEnvioTrabalho', {
     token: state.tentativa.token,
@@ -840,9 +850,12 @@ function renderRelatorio(){
   const rel = state.relatorio;
   const t = state.tentativa;
 
-  const linhasRegra = (rel.erros_regras || [])
-    .map((er) => `<div class="crit-row" style="border-color:var(--red);">✕ ${escapeHtml(er)}</div>`)
-    .join('');
+  const linhasChecklistRegras = (rel.checklist_regras || []).map((c) => `
+    <div class="crit-row" style="border-color:${c.ok ? 'var(--teal)' : 'var(--red)'};">
+      <div class="top"><div>${c.ok ? '✓' : '✕'} ${escapeHtml(c.tipo)} — ${c.quantidade} arquivo(s): ${escapeHtml((c.arquivos||[]).join(', ') || '(nenhum)')}</div></div>
+      ${!c.ok ? c.problemas.map((p) => `<div class="desc" style="margin:4px 0 0; color:var(--red);">${escapeHtml(p)}</div>`).join('') : ''}
+    </div>
+  `).join('');
 
   const blocosItens = Object.entries(rel.itens_por_tipo || {}).map(([tipo, itens]) => `
     <div class="panel">
@@ -865,7 +878,10 @@ function renderRelatorio(){
           ? 'Tudo certo — todas as regras e itens obrigatórios foram encontrados.'
           : 'Há pendências abaixo. Você AINDA PODE confirmar a entrega mesmo assim — revise a lista com atenção antes de decidir.'}</div>
       </div>
-      ${linhasRegra ? `<div class="panel"><h2>Regras de arquivo</h2>${linhasRegra}</div>` : ''}
+      <div class="panel">
+        <h2>Checklist de arquivos</h2>
+        ${linhasChecklistRegras}
+      </div>
       ${blocosItens}
       <div id="acaoFinal"></div>
     </div>
