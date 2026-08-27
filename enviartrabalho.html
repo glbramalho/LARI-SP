@@ -209,7 +209,7 @@ let BACKEND_URL = "";
    horário de Fortaleza) toda vez que este arquivo for editado, ANTES de
    entregar a versão nova. Não precisa tocar em mais nada além desta linha.
    ========================================================================== */
-const ULTIMA_ATUALIZACAO_FRONTEND = "27/08/2026 20:05";
+const ULTIMA_ATUALIZACAO_FRONTEND = "27/08/2026 20:30";
 
 async function carregarMarcadorVersao(){
   const el = document.getElementById('marcadorVersao');
@@ -988,17 +988,30 @@ function renderRelatorio(){
     </div>
   `).join('');
 
-  const blocosItens = Object.entries(rel.itens_por_tipo || {}).map(([tipo, itens]) => `
+  const totalItensPorTipo = Object.entries(rel.itens_por_tipo || {}).map(([tipo, itens]) => {
+    const faltando = itens.filter((it) => !it.ok).length;
+    return { tipo, total: itens.length, faltando };
+  });
+  const totalItensFaltando = totalItensPorTipo.reduce((soma, x) => soma + x.faltando, 0);
+
+  const blocosItens = Object.entries(rel.itens_por_tipo || {}).map(([tipo, itens]) => {
+    const faltando = itens.filter((it) => !it.ok).length;
+    return `
     <div class="panel">
-      <h2>${escapeHtml(tipo)} — itens exigidos no enunciado</h2>
+      <h2>${faltando ? '⚠️' : '✓'} ${escapeHtml(tipo)} — itens exigidos no enunciado</h2>
+      <div class="desc" style="margin-top:0;">${faltando
+        ? `${faltando} de ${itens.length} item(ns) NÃO foram localizados automaticamente no texto extraído.`
+        : `Todos os ${itens.length} item(ns) foram localizados automaticamente no texto extraído.`}</div>
       <div>${itens.map((it) => `
         <div class="crit-row" style="border-color:${it.ok ? 'var(--teal)' : 'var(--red)'};">
           <div class="top"><div>${it.ok ? '✓' : '✕'} ${escapeHtml(it.item)}</div></div>
           ${!it.ok && it.motivo ? `<div class="desc" style="margin:4px 0 0; color:var(--red);">${escapeHtml(it.motivo)}</div>` : ''}
+          ${it.reaproveitado ? `<div class="desc" style="margin:4px 0 0; font-style:italic;">Resultado reaproveitado de uma entrega anterior — este arquivo específico não foi reconferido nesta tentativa.</div>` : ''}
         </div>
       `).join('')}</div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   const panel = h(`
     <div>
@@ -1012,6 +1025,15 @@ function renderRelatorio(){
       </div>
       <div class="panel"><h2>Checklist de arquivos</h2></div>
       ${blocosChecklist}
+      ${totalItensPorTipo.length ? `
+        <div class="panel" style="border-color:${totalItensFaltando ? 'var(--amber)' : 'var(--line)'};">
+          <h2>${totalItensFaltando ? '⚠️' : '✓'} Itens obrigatórios do enunciado</h2>
+          <div class="desc">${totalItensFaltando
+            ? `${totalItensFaltando} item(ns) obrigatório(s) NÃO foram encontrados automaticamente no texto dos seus arquivos (veja abaixo qual tipo e qual item).`
+            : 'Todos os itens obrigatórios do enunciado foram encontrados automaticamente no texto dos seus arquivos.'}</div>
+          <div class="desc" style="margin-top:8px; font-style:italic;">Esta é uma verificação AUTOMÁTICA de texto — ela pode errar (falso negativo), por exemplo se um item aparecer como imagem/print dentro do PDF, com título muito diferente do esperado, ou se o PDF não tiver texto selecionável. Um item marcado com ✕ não significa necessariamente que ele está ausente do seu trabalho — <strong>abra seu arquivo e confira manualmente cada item marcado com ✕ antes de confirmar a entrega definitiva</strong>. Se você conferiu e o item está lá, pode confirmar mesmo assim: quem avalia o conteúdo de verdade é o professor, depois do envio.</div>
+        </div>
+      ` : ''}
       ${blocosItens}
       <div id="acaoFinal"></div>
     </div>
