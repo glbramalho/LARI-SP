@@ -209,7 +209,7 @@ let BACKEND_URL = "";
    horário de Fortaleza) toda vez que este arquivo for editado, ANTES de
    entregar a versão nova. Não precisa tocar em mais nada além desta linha.
    ========================================================================== */
-const ULTIMA_ATUALIZACAO_FRONTEND = "16/08/2026 20:15";
+const ULTIMA_ATUALIZACAO_FRONTEND = "27/08/2026 19:20";
 
 async function carregarMarcadorVersao(){
   const el = document.getElementById('marcadorVersao');
@@ -290,6 +290,9 @@ const state = {
   idTrabalho: '',
   trabalho: null,          // resultado de getTrabalho
   arquivosPorTipo: {},     // { [tipo]: File[] }
+  arquivosExistentesPorTipo: {}, // { [tipo]: [{filename, tamanho}] } — já na pasta (reenvio)
+  tiposReaproveitados: {}, // { [tipo]: true } — aluno optou por manter o(s) arquivo(s) já enviado(s) em vez de reanexar
+  retomadaPermiteNovaTentativa: false, // true = aluno ainda tem tentativa/prazo sobrando, retomar é oferta e não obrigação
   tentativa: null,         // {token, numero_tentativa, forcar_confirmacao, motivo_forcar, reenvio, reenvio_confirmado_em}
   relatorio: null,         // {erros_regras, itens_por_tipo, tudo_ok} — de verificarEnvioTrabalho
   erroContexto: null,      // 'verificacao' | 'confirmacao' — pra saber o que reexecutar no "tentar novamente"
@@ -484,21 +487,35 @@ async function carregarTrabalho(){
     state.erroGeral = r; state.tela = 'erro'; render(); return;
   }
   state.trabalho = r;
+  state.arquivosExistentesPorTipo = r.arquivos_existentes_por_tipo || {};
+  // Por padrão, se já existe arquivo enviado antes pra um tipo, o aluno
+  // começa "reaproveitando" ele — pode trocar por "Substituir arquivos" no
+  // próprio slot. Isso é o que permite pular a etapa de reenviar do zero.
+  state.tiposReaproveitados = {};
+  Object.keys(state.arquivosExistentesPorTipo).forEach((tipo) => { state.tiposReaproveitados[tipo] = true; });
 
-  // Sem tentativas normais sobrando (ou prazo já passou) e ainda não
-  // confirmou? Pode ser um aluno que fechou a aba na última tentativa sem
-  // confirmar — verifica se sobrou uma avaliação pendente pra retomar,
-  // em vez de simplesmente travar ele pra sempre.
-  const tentativasRestantes = Math.max(0, r.tentativas_limite - r.tentativas_usadas);
-  if (!r.ja_confirmado && (tentativasRestantes <= 0 || r.modo_prazo === 'expirado')){
+  // Existe uma verificação já feita ("verificado") e nunca confirmada? Isso
+  // cobre tanto "fechou a aba sem confirmar" quanto "esqueceu mesmo de
+  // clicar em confirmar" — ANTES essa checagem só rodava quando as
+  // tentativas tinham acabado ou o prazo tinha passado, então um aluno que
+  // ainda tinha tentativas sobrando e esqueceu de confirmar caía direto na
+  // tela normal (tela 'trabalho'), sem nenhum aviso — e como o upload de
+  // verdade só acontece no clique de "Confirmar entrega definitiva", nada
+  // tinha ido pro Drive e o Avaliador.html não achava nada pra avaliar.
+  // Agora sempre verifica primeiro, e só passa pra tela normal se realmente
+  // não houver nada pendente.
+  if (!r.ja_confirmado){
     const rp = await chamarBackend('retomarTentativaPendente', {
       id_trabalho: state.idTrabalho, id_token: state.idToken,
       matricula_selecionada: state.matriculaDigitada || undefined,
     });
     if (rp.ok){
-      state.tentativa = { token: rp.token, numero_tentativa: rp.numero_tentativa, forcar_confirmacao: true, motivo_forcar: 'tentativa_pendente' };
+      const tentativasRestantes = Math.max(0, r.tentativas_limite - r.tentativas_usadas);
+      const semNovaChance = tentativasRestantes <= 0 || r.modo_prazo === 'expirado';
+      state.tentativa = { token: rp.token, numero_tentativa: rp.numero_tentativa, forcar_confirmacao: semNovaChance, motivo_forcar: 'tentativa_pendente' };
       state.relatorio = rp.relatorio;
       state.arquivosPorTipo = {};
+      state.retomadaPermiteNovaTentativa = !semNovaChance;
       state.tela = 'retomada';
       render();
       return;
@@ -518,9 +535,13 @@ function renderRetomada(){
   const rel = state.relatorio;
   const t = state.trabalho;
 
+  const avisoChance = state.retomadaPermiteNovaTentativa
+    ? 'Você ainda tem tentativa(s) disponível(is) — pode confirmar esta mesmo assim, ou começar uma nova do zero.'
+    : 'Esta é a sua última chance para este trabalho.';
+
   const panel = h(`
     <div>
-      <div class="banner warn">⚠ Você tem uma verificação da <strong>tentativa ${state.tentativa.numero_tentativa}</strong> que não chegou a virar entrega definitiva — provavelmente a aba fechou antes de confirmar. Esta é a sua última chance para este trabalho.</div>
+      <div class="banner warn">⚠ Você tem uma verificação da <strong>tentativa ${state.tentativa.numero_tentativa}</strong> que não chegou a virar entrega definitiva — parece que você esqueceu de clicar em "Confirmar entrega definitiva" (ou a aba fechou antes disso). ${avisoChance}</div>
 
       ${rel ? `
         <div class="panel" style="text-align:center;">
@@ -545,6 +566,16 @@ function renderRetomada(){
           <button class="btn danger" id="btnConfirmarSemArquivos">Confirmar entrega vazia mesmo assim</button>
         </div>
       </div>
+
+      ${state.retomadaPermiteNovaTentativa ? `
+        <div class="panel">
+          <h2>Prefiro começar de novo</h2>
+          <div class="desc">Ignora esta verificação pendente e inicia uma nova tentativa do zero (consome uma tentativa nova, como de costume).</div>
+          <div class="btn-row">
+            <button class="btn secondary" id="btnComecarNovaTentativa">Começar nova tentativa</button>
+          </div>
+        </div>
+      ` : ''}
     </div>
   `);
 
@@ -562,6 +593,17 @@ function renderRetomada(){
     state.tela = 'confirmado';
     render();
   });
+
+  const btnNova = panel.querySelector('#btnComecarNovaTentativa');
+  if (btnNova){
+    btnNova.addEventListener('click', () => {
+      state.tentativa = null;
+      state.relatorio = null;
+      state.arquivosPorTipo = {};
+      state.tela = 'trabalho';
+      render();
+    });
+  }
 
   return panel;
 }
@@ -638,12 +680,21 @@ function renderTrabalho(){
   return panel;
 }
 
+// Arquivo começando com "." nunca é aceito localmente (arquivo de sistema/
+// sincronização — mesma regra aplicada no servidor e, futuramente, no
+// Avaliador.html/Plagio.html ao escanear pastas).
+function nomeIgnoravelCliente_(nome){
+  return String(nome || '').charAt(0) === '.';
+}
+
 function renderUploadSlot(regra){
   if (!state.arquivosPorTipo[regra.tipo]) state.arquivosPorTipo[regra.tipo] = [];
   const max = regra.max != null && regra.max !== '' ? Number(regra.max) : Infinity;
   const min = Number(regra.min || 0);
   const accept = (regra.extensoes || []).join(',');
   const faixa = min === max ? `exatamente ${min}` : `${min}–${max === Infinity ? '∞' : max}`;
+  const existentes = state.arquivosExistentesPorTipo[regra.tipo] || [];
+  const reaproveitando = () => !!state.tiposReaproveitados[regra.tipo] && existentes.length > 0;
 
   const slot = h(`
     <div class="upload-slot">
@@ -652,17 +703,54 @@ function renderUploadSlot(regra){
           <div class="slot-title">${escapeHtml(regra.tipo)}</div>
           <div class="slot-rule">${escapeHtml((regra.extensoes || []).join(', '))} · ${faixa} arquivo(s)${regra.palavra_chave_nome ? ` · nome deve conter "${escapeHtml(regra.palavra_chave_nome)}"` : ''}</div>
         </div>
-        <label class="btn secondary small">
+        <label class="btn secondary small slotAddBtn">
           + Adicionar
           <input type="file" style="display:none;" ${max > 1 ? 'multiple' : ''} accept="${escapeHtml(accept)}" class="slotFileInput">
         </label>
       </div>
       ${regra.enunciado ? `<div class="desc" style="white-space:pre-wrap; font-size:13px; background:var(--bg-alt,#f6f5f1); border-radius:8px; padding:10px 12px; margin:8px 0;">${escapeHtml(regra.enunciado)}</div>` : ''}
+      <div class="reaproveitoWrap"></div>
       <div class="chips"></div>
     </div>
   `);
 
   function refresh(){
+    const reWrap = slot.querySelector('.reaproveitoWrap');
+    reWrap.innerHTML = '';
+    const addBtn = slot.querySelector('.slotAddBtn');
+
+    if (reaproveitando()){
+      // Reaproveitando: esconde o input de novo arquivo, mostra o que já
+      // está na pasta (de uma entrega anterior) e a opção de trocar.
+      addBtn.style.display = 'none';
+      const bloco = h(`
+        <div class="banner info" style="margin:0 0 10px;">
+          ✓ Já enviado anteriormente — não precisa reenviar: ${existentes.map((e) => `<strong>${escapeHtml(e.filename)}</strong>`).join(', ')}
+          <div style="margin-top:8px;"><button type="button" class="btn secondary small" id="btnSubstituir_${escapeHtml(regra.tipo)}">Substituir arquivos</button></div>
+        </div>
+      `);
+      bloco.querySelector('button').addEventListener('click', () => {
+        state.tiposReaproveitados[regra.tipo] = false;
+        refresh();
+      });
+      reWrap.appendChild(bloco);
+    } else {
+      addBtn.style.display = '';
+      if (existentes.length){
+        const bloco = h(`
+          <div class="desc" style="margin:0 0 8px;">
+            Você tinha enviado antes: ${existentes.map((e) => escapeHtml(e.filename)).join(', ')}.
+            <button type="button" class="btn secondary small" style="margin-left:4px;">↺ Usar de novo</button>
+          </div>
+        `);
+        bloco.querySelector('button').addEventListener('click', () => {
+          state.tiposReaproveitados[regra.tipo] = true;
+          refresh();
+        });
+        reWrap.appendChild(bloco);
+      }
+    }
+
     const chipsWrap = slot.querySelector('.chips');
     chipsWrap.innerHTML = '';
     state.arquivosPorTipo[regra.tipo].forEach((f, i) => {
@@ -673,16 +761,18 @@ function renderUploadSlot(regra){
       });
       chipsWrap.appendChild(chip);
     });
-    const count = state.arquivosPorTipo[regra.tipo].length;
+
+    const count = reaproveitando() ? existentes.length : state.arquivosPorTipo[regra.tipo].length;
     slot.classList.toggle('filled', count >= min && count <= max);
     slot.classList.toggle('error', count > max);
   }
 
   slot.querySelector('.slotFileInput').addEventListener('change', (e) => {
-    const novos = Array.from(e.target.files);
+    const selecionados = Array.from(e.target.files);
     const aceitos = [];
     const rejeitados = [];
-    novos.forEach((f) => {
+    selecionados.forEach((f) => {
+      if (nomeIgnoravelCliente_(f.name)) return; // arquivo oculto — ignorado silenciosamente
       if (regra.palavra_chave_nome){
         let bate;
         try{ bate = new RegExp(regra.palavra_chave_nome, 'i').test(f.name); }
@@ -759,9 +849,20 @@ async function extrairTextoDoTipo_(regra){
    VERIFICAÇÃO — iniciar tentativa (ou reusar) + extrair texto localmente
    (só dos tipos que precisam) + verificação determinística no servidor.
    ========================================================================== */
+// true se o aluno optou por manter o(s) arquivo(s) já enviado(s) antes pra
+// esse tipo, em vez de reanexar do zero (ver renderUploadSlot).
+function estaReaproveitando_(tipo){
+  return !!state.tiposReaproveitados[tipo] && (state.arquivosExistentesPorTipo[tipo] || []).length > 0;
+}
+function contagemEfetivaTipo_(tipo){
+  return estaReaproveitando_(tipo)
+    ? (state.arquivosExistentesPorTipo[tipo] || []).length
+    : (state.arquivosPorTipo[tipo] || []).length;
+}
+
 async function iniciarVerificacao(){
   const regras = state.trabalho.regras_arquivos || [];
-  const faltando = regras.filter((r) => (state.arquivosPorTipo[r.tipo] || []).length < Number(r.min || 0));
+  const faltando = regras.filter((r) => contagemEfetivaTipo_(r.tipo) < Number(r.min || 0));
   if (faltando.length){
     alert('Faltam arquivos obrigatórios: ' + faltando.map((r) => r.tipo).join(', '));
     return;
@@ -788,7 +889,23 @@ async function iniciarVerificacao(){
   }
 
   const manifesto = [];
+  regras.forEach((r) => {
+    if (estaReaproveitando_(r.tipo)){
+      // Não é um File novo — é um arquivo que já está na pasta do Drive de
+      // uma entrega anterior. reaproveitado:true diz ao servidor pra não
+      // arquivá-lo junto com o resto e pra não exigir upload dele de novo
+      // (ver acaoIniciarEntregaDefinitivaTrabalho/acaoVerificarEnvioTrabalho).
+      (state.arquivosExistentesPorTipo[r.tipo] || []).forEach((e) => {
+        manifesto.push({ tipo: r.tipo, filename: e.filename, reaproveitado: true });
+      });
+    } else {
+      (state.arquivosPorTipo[r.tipo] || []).forEach((f) => manifesto.push({ tipo: r.tipo, filename: f.name }));
+    }
+  });
+  // Tipos que não têm regra correspondente aqui (não deveria acontecer, mas
+  // por segurança) continuam cobertos pelo caminho antigo:
   Object.entries(state.arquivosPorTipo).forEach(([tipo, files]) => {
+    if (regras.some((r) => r.tipo === tipo)) return;
     files.forEach((f) => manifesto.push({ tipo, filename: f.name }));
   });
 
