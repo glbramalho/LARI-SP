@@ -209,7 +209,7 @@ let BACKEND_URL = "";
    horário de Fortaleza) toda vez que este arquivo for editado, ANTES de
    entregar a versão nova. Não precisa tocar em mais nada além desta linha.
    ========================================================================== */
-const ULTIMA_ATUALIZACAO_FRONTEND = "27/08/2026 20:30";
+const ULTIMA_ATUALIZACAO_FRONTEND = "27/08/2026 20:45";
 
 async function carregarMarcadorVersao(){
   const el = document.getElementById('marcadorVersao');
@@ -546,8 +546,9 @@ function renderRetomada(){
       ${rel ? `
         <div class="panel" style="text-align:center;">
           <div class="big-icon">${rel.tudo_ok ? '✅' : '⚠️'}</div>
-          <div class="desc" style="margin-top:0;">${rel.tudo_ok ? 'Aquela verificação não encontrou pendências.' : 'Aquela verificação encontrou pendências — reveja os arquivos antes de reanexar.'}</div>
+          <div class="desc" style="margin-top:0;">${rel.tudo_ok ? 'Aquela verificação não encontrou pendências.' : 'Aquela verificação encontrou pendências — reveja os arquivos/itens abaixo antes de reanexar e confirmar.'}</div>
         </div>
+        ${renderBlocosPendencias(rel)}
       ` : ''}
 
       <div class="panel">
@@ -965,14 +966,13 @@ async function iniciarVerificacao(){
 }
 
 /* ==========================================================================
-   RELATÓRIO — regras + itens obrigatórios por tipo, atendidos/ausentes.
-   NUNCA bloqueia o botão de entrega — mostra aviso quando há pendência,
-   mas quem decide se entrega mesmo assim é o aluno.
+   BLOCOS DE PENDÊNCIA (checklist de arquivos + itens obrigatórios do
+   enunciado) — compartilhado entre a tela de relatório normal e a tela de
+   retomada (aluno que esqueceu de confirmar), pra garantir que a lista de
+   itens não encontrados apareça em QUALQUER lugar que mostre o relatório,
+   não só no fluxo "feliz".
    ========================================================================== */
-function renderRelatorio(){
-  const rel = state.relatorio;
-  const t = state.tentativa;
-
+function renderBlocosPendencias(rel){
   const blocosChecklist = (rel.checklist_regras || []).map((c) => `
     <div class="panel">
       <h2>${c.ok ? '✓' : '✕'} ${escapeHtml(c.tipo)}</h2>
@@ -1013,6 +1013,28 @@ function renderRelatorio(){
   `;
   }).join('');
 
+  const bannerItens = totalItensPorTipo.length ? `
+    <div class="panel" style="border-color:${totalItensFaltando ? 'var(--amber)' : 'var(--line)'};">
+      <h2>${totalItensFaltando ? '⚠️' : '✓'} Itens obrigatórios do enunciado</h2>
+      <div class="desc">${totalItensFaltando
+        ? `${totalItensFaltando} item(ns) obrigatório(s) NÃO foram encontrados automaticamente no texto dos seus arquivos (veja abaixo qual tipo e qual item).`
+        : 'Todos os itens obrigatórios do enunciado foram encontrados automaticamente no texto dos seus arquivos.'}</div>
+      <div class="desc" style="margin-top:8px; font-style:italic;">Esta é uma verificação AUTOMÁTICA de texto — ela pode errar (falso negativo), por exemplo se um item aparecer como imagem/print dentro do PDF, com título muito diferente do esperado, ou se o PDF não tiver texto selecionável. Um item marcado com ✕ não significa necessariamente que ele está ausente do seu trabalho — <strong>abra seu arquivo e confira manualmente cada item marcado com ✕ antes de confirmar a entrega definitiva</strong>. Se você conferiu e o item está lá, pode confirmar mesmo assim: quem avalia o conteúdo de verdade é o professor, depois do envio.</div>
+    </div>
+  ` : '';
+
+  return `<div class="panel"><h2>Checklist de arquivos</h2></div>${blocosChecklist}${bannerItens}${blocosItens}`;
+}
+
+/* ==========================================================================
+   RELATÓRIO — regras + itens obrigatórios por tipo, atendidos/ausentes.
+   NUNCA bloqueia o botão de entrega — mostra aviso quando há pendência,
+   mas quem decide se entrega mesmo assim é o aluno.
+   ========================================================================== */
+function renderRelatorio(){
+  const rel = state.relatorio;
+  const t = state.tentativa;
+
   const panel = h(`
     <div>
       <div class="panel" style="text-align:center;">
@@ -1023,18 +1045,7 @@ function renderRelatorio(){
           : 'Há pendências na conferência automática — veja o checklist abaixo. Você AINDA PODE confirmar a entrega mesmo assim.'}</div>
         <div class="desc" style="margin-top:6px; font-size:12.5px; font-style:italic;">Isso é só uma conferência automática de formato — não avalia a qualidade ou o conteúdo do seu trabalho. Essa avaliação é feita pelo professor depois do envio.</div>
       </div>
-      <div class="panel"><h2>Checklist de arquivos</h2></div>
-      ${blocosChecklist}
-      ${totalItensPorTipo.length ? `
-        <div class="panel" style="border-color:${totalItensFaltando ? 'var(--amber)' : 'var(--line)'};">
-          <h2>${totalItensFaltando ? '⚠️' : '✓'} Itens obrigatórios do enunciado</h2>
-          <div class="desc">${totalItensFaltando
-            ? `${totalItensFaltando} item(ns) obrigatório(s) NÃO foram encontrados automaticamente no texto dos seus arquivos (veja abaixo qual tipo e qual item).`
-            : 'Todos os itens obrigatórios do enunciado foram encontrados automaticamente no texto dos seus arquivos.'}</div>
-          <div class="desc" style="margin-top:8px; font-style:italic;">Esta é uma verificação AUTOMÁTICA de texto — ela pode errar (falso negativo), por exemplo se um item aparecer como imagem/print dentro do PDF, com título muito diferente do esperado, ou se o PDF não tiver texto selecionável. Um item marcado com ✕ não significa necessariamente que ele está ausente do seu trabalho — <strong>abra seu arquivo e confira manualmente cada item marcado com ✕ antes de confirmar a entrega definitiva</strong>. Se você conferiu e o item está lá, pode confirmar mesmo assim: quem avalia o conteúdo de verdade é o professor, depois do envio.</div>
-        </div>
-      ` : ''}
-      ${blocosItens}
+      ${renderBlocosPendencias(rel)}
       <div id="acaoFinal"></div>
     </div>
   `);
