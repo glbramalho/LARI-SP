@@ -209,7 +209,7 @@ let BACKEND_URL = "";
    horário de Fortaleza) toda vez que este arquivo for editado, ANTES de
    entregar a versão nova. Não precisa tocar em mais nada além desta linha.
    ========================================================================== */
-const ULTIMA_ATUALIZACAO_FRONTEND = "27/08/2026 21:10";
+const ULTIMA_ATUALIZACAO_FRONTEND = "27/08/2026 22:00";
 
 async function carregarMarcadorVersao(){
   const el = document.getElementById('marcadorVersao');
@@ -535,6 +535,27 @@ function renderRetomada(){
   const rel = state.relatorio;
   const t = state.trabalho;
 
+  async function confirmarRetomadaComReverificacao(){
+    const temAlgumArquivo = Object.values(state.arquivosPorTipo).some((arr) => arr.length) ||
+      Object.keys(state.tiposReaproveitados || {}).some((tipo) => estaReaproveitando_(tipo));
+    if (!temAlgumArquivo){
+      alert('Você não anexou nenhum arquivo novo. Se você não tem mais os arquivos, use o botão "Confirmar entrega vazia mesmo assim" abaixo em vez deste.');
+      return;
+    }
+    state.tela = 'verificando';
+    state.progressoVerificacao = 'Conferindo os arquivos reanexados...';
+    render();
+    const rVerificar = await reverificarComArquivosAtuais_();
+    if (!rVerificar.ok){
+      state.erroContexto = 'verificacao';
+      state.erroGeral = rVerificar;
+      state.tela = 'erro';
+      render();
+      return;
+    }
+    await iniciarConfirmacao();
+  }
+
   const avisoChance = state.retomadaPermiteNovaTentativa
     ? 'Você ainda tem tentativa(s) disponível(is) — pode confirmar esta mesmo assim, ou começar uma nova do zero.'
     : 'Esta é a sua última chance para este trabalho.';
@@ -583,7 +604,7 @@ function renderRetomada(){
   const slotsWrap = panel.querySelector('#uploadSlotsRetomada');
   (t.regras_arquivos || []).forEach((regra) => slotsWrap.appendChild(renderUploadSlot(regra)));
 
-  panel.querySelector('#btnConfirmarRetomada').addEventListener('click', iniciarConfirmacao);
+  panel.querySelector('#btnConfirmarRetomada').addEventListener('click', confirmarRetomadaComReverificacao);
   panel.querySelector('#btnConfirmarSemArquivos').addEventListener('click', async () => {
     if (!confirm('Tem certeza? Isso confirma a entrega sem arquivos novos, de forma definitiva e irreversível.')) return;
     state.tela = 'confirmando';
@@ -867,6 +888,65 @@ function contagemEfetivaTipo_(tipo){
     : (state.arquivosPorTipo[tipo] || []).length;
 }
 
+/* ==========================================================================
+   RE-VERIFICAR COM OS ARQUIVOS ATUAIS — monta o manifesto a partir do que
+   está em state.arquivosPorTipo/reaproveitamento agora, extrai texto quando
+   necessário, e chama verificarEnvioTrabalho no servidor. Compartilhado
+   entre o fluxo normal (iniciarVerificacao) e a tela de retomada.
+   IMPORTANTE: sem isso, "Confirmar entrega definitiva" na tela de retomada
+   chamava iniciarConfirmacao() direto usando o manifesto ANTIGO (de quando
+   a verificação original rodou) — se o aluno reanexasse um arquivo com nome
+   diferente do que estava naquele manifesto antigo (comum: reabrir o
+   seletor, escolher outra cópia do arquivo), o upload nunca batia com o
+   manifesto e a confirmação falhava com ARQUIVOS_FALTANDO SEMPRE, mesmo
+   tentando de novo, porque o manifesto nunca era atualizado. BUG REAL,
+   CORRIGIDO: agora sempre reverifica antes de confirmar.
+   Pressupõe que state.tentativa já existe (token válido).
+   ========================================================================== */
+async function reverificarComArquivosAtuais_(){
+  const regras = state.trabalho.regras_arquivos || [];
+
+  const manifesto = [];
+  regras.forEach((r) => {
+    if (estaReaproveitando_(r.tipo)){
+      (state.arquivosExistentesPorTipo[r.tipo] || []).forEach((e) => {
+        manifesto.push({ tipo: r.tipo, filename: e.filename, reaproveitado: true });
+      });
+    } else {
+      (state.arquivosPorTipo[r.tipo] || []).forEach((f) => manifesto.push({ tipo: r.tipo, filename: f.name }));
+    }
+  });
+  Object.entries(state.arquivosPorTipo).forEach(([tipo, files]) => {
+    if (regras.some((r) => r.tipo === tipo)) return;
+    files.forEach((f) => manifesto.push({ tipo, filename: f.name }));
+  });
+
+  const textosPorTipo = {};
+  for (const regra of regras){
+    if (precisaExtrairTexto_(regra)){
+      const arquivos = state.arquivosPorTipo[regra.tipo] || [];
+      state.progressoVerificacao = `Lendo ${arquivos.length} arquivo(s) de ${regra.tipo}...`;
+      render();
+      textosPorTipo[regra.tipo] = await extrairTextoDoTipo_(regra);
+    }
+  }
+
+  state.progressoVerificacao = 'Conferindo regras e itens do enunciado...';
+  render();
+
+  const rVerificar = await chamarBackend('verificarEnvioTrabalho', {
+    token: state.tentativa.token,
+    manifesto_arquivos_json: JSON.stringify(manifesto),
+    textos_por_tipo_json: JSON.stringify(textosPorTipo),
+  }, true);
+
+  if (rVerificar.ok){
+    state.manifesto = manifesto;
+    state.relatorio = rVerificar.relatorio;
+  }
+  return rVerificar;
+}
+
 async function iniciarVerificacao(){
   const regras = state.trabalho.regras_arquivos || [];
   const faltando = regras.filter((r) => contagemEfetivaTipo_(r.tipo) < Number(r.min || 0));
@@ -895,45 +975,7 @@ async function iniciarVerificacao(){
     state.tentativa = rInicio;
   }
 
-  const manifesto = [];
-  regras.forEach((r) => {
-    if (estaReaproveitando_(r.tipo)){
-      // Não é um File novo — é um arquivo que já está na pasta do Drive de
-      // uma entrega anterior. reaproveitado:true diz ao servidor pra não
-      // arquivá-lo junto com o resto e pra não exigir upload dele de novo
-      // (ver acaoIniciarEntregaDefinitivaTrabalho/acaoVerificarEnvioTrabalho).
-      (state.arquivosExistentesPorTipo[r.tipo] || []).forEach((e) => {
-        manifesto.push({ tipo: r.tipo, filename: e.filename, reaproveitado: true });
-      });
-    } else {
-      (state.arquivosPorTipo[r.tipo] || []).forEach((f) => manifesto.push({ tipo: r.tipo, filename: f.name }));
-    }
-  });
-  // Tipos que não têm regra correspondente aqui (não deveria acontecer, mas
-  // por segurança) continuam cobertos pelo caminho antigo:
-  Object.entries(state.arquivosPorTipo).forEach(([tipo, files]) => {
-    if (regras.some((r) => r.tipo === tipo)) return;
-    files.forEach((f) => manifesto.push({ tipo, filename: f.name }));
-  });
-
-  const textosPorTipo = {};
-  for (const regra of regras){
-    if (precisaExtrairTexto_(regra)){
-      const arquivos = state.arquivosPorTipo[regra.tipo] || [];
-      state.progressoVerificacao = `Lendo ${arquivos.length} arquivo(s) de ${regra.tipo}...`;
-      render();
-      textosPorTipo[regra.tipo] = await extrairTextoDoTipo_(regra);
-    }
-  }
-
-  state.progressoVerificacao = 'Conferindo regras e itens do enunciado...';
-  render();
-
-  const rVerificar = await chamarBackend('verificarEnvioTrabalho', {
-    token: state.tentativa.token,
-    manifesto_arquivos_json: JSON.stringify(manifesto),
-    textos_por_tipo_json: JSON.stringify(textosPorTipo),
-  }, true);
+  const rVerificar = await reverificarComArquivosAtuais_();
 
   if (!rVerificar.ok){
     if (rVerificar.erro === 'TENTATIVA_JA_FINALIZADA'){
@@ -959,8 +1001,6 @@ async function iniciarVerificacao(){
     return;
   }
 
-  state.manifesto = manifesto;
-  state.relatorio = rVerificar.relatorio;
   state.tela = 'relatorio';
   render();
 }
