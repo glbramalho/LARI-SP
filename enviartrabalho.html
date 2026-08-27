@@ -209,7 +209,7 @@ let BACKEND_URL = "";
    horário de Fortaleza) toda vez que este arquivo for editado, ANTES de
    entregar a versão nova. Não precisa tocar em mais nada além desta linha.
    ========================================================================== */
-const ULTIMA_ATUALIZACAO_FRONTEND = "27/08/2026 19:20";
+const ULTIMA_ATUALIZACAO_FRONTEND = "27/08/2026 20:05";
 
 async function carregarMarcadorVersao(){
   const el = document.getElementById('marcadorVersao');
@@ -745,6 +745,12 @@ function renderUploadSlot(regra){
         `);
         bloco.querySelector('button').addEventListener('click', () => {
           state.tiposReaproveitados[regra.tipo] = true;
+          // Volta a reaproveitar o(s) arquivo(s) já enviado(s) — qualquer
+          // arquivo novo que o aluno tenha anexado enquanto estava em modo
+          // "substituir" deixa de fazer sentido (não vai ser usado) e
+          // ficava, por bug, ainda visível como chip; agora é removido
+          // junto, pra não parecer que os dois serão enviados.
+          state.arquivosPorTipo[regra.tipo] = [];
           refresh();
         });
         reWrap.appendChild(bloco);
@@ -881,7 +887,7 @@ async function iniciarVerificacao(){
 
     if (rInicio.reenvio){
       const aceita = confirm(
-        'Você já tem uma entrega confirmada para este trabalho. Continuar vai SUBSTITUIR os arquivos entregues anteriormente (a versão antiga fica guardada, mas só o professor acessa). Deseja continuar?'
+        'Você já tem uma entrega confirmada para este trabalho. Continuar vai gerar uma NOVA entrega definitiva: os tipos de arquivo que você optou por "Substituir" serão trocados (a versão antiga fica guardada, só o professor acessa); os que você manteve como "já enviado" continuam como estão. Deseja continuar?'
       );
       if (!aceita){ state.tela = 'trabalho'; render(); return; }
     }
