@@ -74,6 +74,7 @@ code, .mono{font-family:var(--font-mono);}
 .topbar .relogio .contagem.urgente-2h{color:#FF7B67; animation:relogioPisca 1s steps(1) infinite;}
 .topbar .relogio .contagem.encerrado{color:#FF7B67; opacity:.85;}
 @keyframes relogioPisca{ 50%{opacity:.25;} }
+.btn.piscando-vermelho{ background:var(--red); border-color:var(--red); animation:relogioPisca 1s steps(1) infinite; }
 .topbar .versaoMarcador{font-family:var(--font-mono); font-size:10px; line-height:1.55; color:#8a8577; text-align:right; white-space:nowrap;}
 
 .wrap{max-width:660px; margin:0 auto; padding:28px 18px 80px;}
@@ -223,7 +224,7 @@ let BACKEND_URL = "";
    horário de Fortaleza) toda vez que este arquivo for editado, ANTES de
    entregar a versão nova. Não precisa tocar em mais nada além desta linha.
    ========================================================================== */
-const ULTIMA_ATUALIZACAO_FRONTEND = "27/08/2026 22:45";
+const ULTIMA_ATUALIZACAO_FRONTEND = "30/08/2026 14:30";
 
 async function carregarMarcadorVersao(){
   const el = document.getElementById('marcadorVersao');
@@ -578,14 +579,10 @@ async function carregarTrabalho(){
 
   // Existe uma verificação já feita ("verificado") e nunca confirmada? Isso
   // cobre tanto "fechou a aba sem confirmar" quanto "esqueceu mesmo de
-  // clicar em confirmar" — ANTES essa checagem só rodava quando as
-  // tentativas tinham acabado ou o prazo tinha passado, então um aluno que
-  // ainda tinha tentativas sobrando e esqueceu de confirmar caía direto na
-  // tela normal (tela 'trabalho'), sem nenhum aviso — e como o upload de
-  // verdade só acontece no clique de "Confirmar entrega definitiva", nada
-  // tinha ido pro Drive e o Avaliador.html não achava nada pra avaliar.
-  // Agora sempre verifica primeiro, e só passa pra tela normal se realmente
-  // não houver nada pendente.
+  // clicar em confirmar" — sempre verifica primeiro, e só passa pra tela
+  // normal se realmente não houver nada pendente. Sem isso, o Avaliador.html
+  // não teria arquivo nenhum pra avaliar (upload de verdade só acontece no
+  // clique de confirmar, nunca na verificação em si).
   if (!r.ja_confirmado){
     const rp = await chamarBackend('retomarTentativaPendente', {
       id_trabalho: state.idTrabalho, id_token: state.idToken,
@@ -639,12 +636,14 @@ function renderRetomada(){
   }
 
   const avisoChance = state.retomadaPermiteNovaTentativa
-    ? 'Você ainda tem tentativa(s) disponível(is) — pode confirmar esta mesmo assim, ou começar uma nova do zero.'
-    : 'Esta é a sua última chance para este trabalho.';
+    ? 'Você ainda tem tentativa(s) de confirmação disponível(is) — pode confirmar esta mesmo assim, ou começar uma nova verificação do zero.'
+    : 'Esta é a sua última tentativa de confirmação para este trabalho.';
+  const labelConfirmar = state.tentativa.forcar_confirmacao ? 'Confirmar entrega definitiva' : 'Confirmar entrega';
+  const classeConfirmar = state.tentativa.forcar_confirmacao ? 'btn teal full piscando-vermelho' : 'btn teal full';
 
   const panel = h(`
     <div>
-      <div class="banner warn">⚠ Você tem uma verificação da <strong>tentativa ${state.tentativa.numero_tentativa}</strong> que não chegou a virar entrega definitiva — parece que você esqueceu de clicar em "Confirmar entrega definitiva" (ou a aba fechou antes disso). ${avisoChance}</div>
+      <div class="banner warn">⚠ Você tem uma verificação da <strong>tentativa ${state.tentativa.numero_tentativa}</strong> que não chegou a ser confirmada — parece que você esqueceu de clicar em "Confirmar entrega" (ou a aba fechou antes disso). ${avisoChance}</div>
 
       ${rel ? `
         <div class="panel" style="text-align:center;">
@@ -659,7 +658,7 @@ function renderRetomada(){
         <div class="desc">Se você ainda tem os arquivos neste dispositivo, anexe de novo abaixo e confirme normalmente.</div>
         <div id="uploadSlotsRetomada"></div>
         <div class="btn-row" style="margin-top:10px;">
-          <button class="btn teal full" id="btnConfirmarRetomada" style="width:100%;">Confirmar entrega definitiva</button>
+          <button class="${classeConfirmar}" id="btnConfirmarRetomada" style="width:100%;">${labelConfirmar}</button>
         </div>
       </div>
 
@@ -674,7 +673,7 @@ function renderRetomada(){
       ${state.retomadaPermiteNovaTentativa ? `
         <div class="panel">
           <h2>Prefiro começar de novo</h2>
-          <div class="desc">Ignora esta verificação pendente e inicia uma nova tentativa do zero (consome uma tentativa nova, como de costume).</div>
+          <div class="desc">Ignora esta verificação pendente e inicia uma nova verificação do zero (verificar é livre — só confirmar consome uma tentativa).</div>
           <div class="btn-row">
             <button class="btn secondary" id="btnComecarNovaTentativa">Começar nova tentativa</button>
           </div>
@@ -738,7 +737,8 @@ function renderTrabalho(){
       ` : ''}
       <div class="panel">
         <h2>${escapeHtml(t.titulo || state.idTrabalho)}</h2>
-        <div class="desc">Prazo: ${escapeHtml(prazoTxt)} · Tentativas: ${t.tentativas_usadas}/${t.tentativas_limite} usadas (${tentativasRestantes} restante${tentativasRestantes===1?'':'s'})</div>
+        <div class="desc">Prazo: ${escapeHtml(prazoTxt)} · Tentativas de confirmação: ${t.tentativas_usadas}/${t.tentativas_limite} usadas (${tentativasRestantes} restante${tentativasRestantes===1?'':'s'})</div>
+        <div class="desc" style="font-size:12px; font-style:italic; margin-top:2px;">Verificar os arquivos é livre — pode repetir quantas vezes quiser. Só CONFIRMAR a entrega consome uma tentativa.</div>
         <div class="field">
           <label>Enunciado</label>
           <div style="white-space:pre-wrap; font-size:14px; line-height:1.6;">${escapeHtml(t.enunciado)}</div>
@@ -757,9 +757,7 @@ function renderTrabalho(){
         <div id="uploadSlots"></div>
       </div>
 
-      ${tentativasRestantes <= 0
-        ? `<div class="banner err">Você já usou todas as suas tentativas para este trabalho. Fale com o professor se precisar de uma exceção.</div>`
-        : `<div class="btn-row"><button class="btn teal full" id="btnVerificar" style="width:100%;">🔎 Enviar e verificar arquivos</button></div>`}
+      <div class="btn-row"><button class="btn teal full" id="btnVerificar" style="width:100%;">🔎 Verificar arquivos</button></div>
     </div>
   `);
 
@@ -1165,7 +1163,7 @@ function renderRelatorio(){
   const panel = h(`
     <div>
       <div class="panel" style="text-align:center;">
-        <div class="desc">Tentativa ${t.numero_tentativa} de ${state.trabalho.tentativas_limite}</div>
+        <div class="desc">Verificação nº ${t.numero_tentativa} · Tentativas de confirmação: ${state.trabalho.tentativas_usadas}/${state.trabalho.tentativas_limite} usadas</div>
         <div class="big-icon">${rel.tudo_ok ? '✅' : '⚠️'}</div>
         <div class="desc" style="margin-top:0;">${rel.tudo_ok
           ? 'Conferência automática de FORMATO concluída sem pendências: arquivos certos, quantidades certas, itens exigidos localizados no texto.'
@@ -1182,19 +1180,19 @@ function renderRelatorio(){
   // TODO: o texto exato do aviso antes da entrega definitiva com pendência
   // ainda vai ser definido — este é um texto provisório.
   const confirmarComAviso = () => {
-    if (!rel.tudo_ok && !confirm('Existem itens não localizados ou regras não atendidas na sua entrega (veja a lista acima). Você pode confirmar mesmo assim, mas isso pode afetar sua avaliação. Deseja confirmar a entrega definitiva mesmo assim?')) return;
+    if (!rel.tudo_ok && !confirm('Existem itens não localizados ou regras não atendidas na sua entrega (veja a lista acima). Você pode confirmar mesmo assim, mas isso pode afetar sua avaliação. Deseja confirmar mesmo assim?')) return;
     iniciarConfirmacao();
   };
 
   if (t.forcar_confirmacao){
     const motivo = t.motivo_forcar === 'limite_atingido'
-      ? 'Essa era sua última tentativa disponível.'
+      ? 'Essa é sua última tentativa de confirmação disponível.'
       : t.motivo_forcar === 'tolerancia_prazo'
         ? 'Você está no período de tolerância do prazo.'
         : 'Essa verificação estava pendente de confirmação.';
-    acaoWrap.appendChild(h(`<div class="banner warn">${motivo} Este envio já vai virar sua <strong>entrega definitiva</strong> — confirme abaixo.</div>`));
+    acaoWrap.appendChild(h(`<div class="banner warn">${motivo} Se você confirmar agora, esta será sua <strong>entrega definitiva</strong> — não há nova chance depois dela.</div>`));
     const row = h(`<div class="btn-row"></div>`);
-    const btn = h(`<button class="btn teal full" style="width:100%;">Confirmar entrega definitiva</button>`);
+    const btn = h(`<button class="btn teal full piscando-vermelho" style="width:100%;">Confirmar entrega definitiva</button>`);
     btn.addEventListener('click', confirmarComAviso);
     row.appendChild(btn);
     acaoWrap.appendChild(row);
@@ -1202,7 +1200,7 @@ function renderRelatorio(){
     const row = h(`<div class="btn-row"></div>`);
     const btnNovo = h(`<button class="btn secondary">↻ Ajustar arquivos e verificar de novo</button>`);
     btnNovo.addEventListener('click', () => { state.tentativa = null; state.tela = 'trabalho'; render(); });
-    const btnConfirmar = h(`<button class="btn teal">Confirmar entrega definitiva →</button>`);
+    const btnConfirmar = h(`<button class="btn teal">Confirmar entrega →</button>`);
     btnConfirmar.addEventListener('click', confirmarComAviso);
     row.appendChild(btnNovo);
     row.appendChild(btnConfirmar);
