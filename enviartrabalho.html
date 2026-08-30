@@ -224,7 +224,7 @@ let BACKEND_URL = "";
    horário de Fortaleza) toda vez que este arquivo for editado, ANTES de
    entregar a versão nova. Não precisa tocar em mais nada além desta linha.
    ========================================================================== */
-const ULTIMA_ATUALIZACAO_FRONTEND = "30/08/2026 14:30";
+const ULTIMA_ATUALIZACAO_FRONTEND = "30/08/2026 17:00";
 
 async function carregarMarcadorVersao(){
   const el = document.getElementById('marcadorVersao');
@@ -366,7 +366,7 @@ function $(sel, root){ return (root||document).querySelector(sel); }
    ESTADO GLOBAL DA APLICAÇÃO
    ========================================================================== */
 const state = {
-  tela: 'login',           // login | precisa_matricula | trabalho | enviando | avaliando | resultado | confirmando | confirmado | erro
+  tela: 'login',           // login | precisa_matricula | trabalho | verificando | relatorio | confirmando | confirmado | enviado_parcial | erro
   idToken: null,
   perfilGoogle: null,      // {name, email, picture}
   matriculaDigitada: '',
@@ -375,10 +375,9 @@ const state = {
   arquivosPorTipo: {},     // { [tipo]: File[] }
   arquivosExistentesPorTipo: {}, // { [tipo]: [{filename, tamanho}] } — já na pasta (reenvio)
   tiposReaproveitados: {}, // { [tipo]: true } — aluno optou por manter o(s) arquivo(s) já enviado(s) em vez de reanexar
-  retomadaPermiteNovaTentativa: false, // true = aluno ainda tem tentativa/prazo sobrando, retomar é oferta e não obrigação
-  tentativa: null,         // {token, numero_tentativa, forcar_confirmacao, motivo_forcar, reenvio, reenvio_confirmado_em}
-  relatorio: null,         // {erros_regras, itens_por_tipo, tudo_ok} — de verificarEnvioTrabalho
-  erroContexto: null,      // 'verificacao' | 'confirmacao' — pra saber o que reexecutar no "tentar novamente"
+  relatorioPreview: null,  // {relatorio, numero_tentativa_previsto, tentativas_limite, seria_ultima_tentativa} — de verificarEnvioTrabalho (não grava nada)
+  envio: null,             // {token, numero_tentativa, eh_ultima_tentativa} — só existe depois de clicar em Enviar (isso sim conta tentativa)
+  erroContexto: null,      // 'envio' — pra saber se dá pra "tentar de novo" reusando o token de envio
   progressoVerificacao: '', // mensagem de status exibida durante a tela "verificando"
   manifesto: null,
   progressoUpload: [],     // [{filename, tipo, status:'pendente'|'enviando'|'ok'|'erro'}]
@@ -393,11 +392,11 @@ function render(){
     precisa_matricula: renderPrecisaMatricula,
     carregando: () => renderCentro('⏳', 'Carregando...'),
     trabalho: renderTrabalho,
-    retomada: renderRetomada,
     verificando: () => renderCentro('🔎', state.progressoVerificacao || 'Verificando seus arquivos...', true),
     relatorio: renderRelatorio,
     confirmando: renderConfirmando,
     confirmado: renderConfirmado,
+    enviado_parcial: renderEnviadoParcial,
     erro: renderErro,
   };
   const fn = map[state.tela] || renderErro;
@@ -418,15 +417,15 @@ function renderErro(){
   const msg = MENSAGENS_ERRO[state.erroGeral?.erro] || state.erroGeral?.erro || 'Algo deu errado.';
   const detalhe = state.erroGeral?.detalhe;
   // Contingência: qualquer erro que não seja um estado terminal (prazo
-  // expirado, já confirmado, etc.) oferece "tentar de novo" — reexecuta a
-  // etapa (verificação ou confirmação) em que o erro aconteceu, reusando o
-  // mesmo token, em vez de fazer o aluno recomeçar do zero.
+  // expirado, já confirmado, etc.) oferece "tentar de novo" — reexecuta o
+  // envio (upload+finalizar) reusando o mesmo token, em vez de fazer o
+  // aluno recomeçar do zero e perder a tentativa já iniciada.
   const ERROS_TERMINAIS = new Set([
     'ENTREGA_JA_CONFIRMADA', 'TRABALHO_INATIVO', 'TRABALHO_NAO_ENCONTRADO',
     'ALUNO_NAO_MATRICULADO_NESTA_DISCIPLINA', 'FORA_DO_PRAZO_E_TOLERANCIA',
     'LIMITE_TENTATIVAS_ATINGIDO', 'MATRICULA_NAO_ENCONTRADA',
   ]);
-  const podeTentarNovamente = state.erroContexto && state.tentativa?.token && !ERROS_TERMINAIS.has(state.erroGeral?.erro);
+  const podeTentarNovamente = (state.erroContexto === 'envio' || state.erroContexto === 'verificacao') && !ERROS_TERMINAIS.has(state.erroGeral?.erro);
   return h(`
     <div class="panel center-msg">
       <div class="big-icon">⚠️</div>
@@ -448,8 +447,9 @@ const MENSAGENS_ERRO = {
   TRABALHO_INATIVO: 'Este trabalho não está mais aceitando envios no momento.',
   ALUNO_NAO_MATRICULADO_NESTA_DISCIPLINA: 'Sua matrícula não está vinculada a esta disciplina.',
   ENTREGA_JA_CONFIRMADA: 'Sua entrega para este trabalho já foi confirmada.',
+  ENVIO_JA_FINALIZADO: 'Este envio já tinha sido concluído — atualize a página.',
   FORA_DO_PRAZO_E_TOLERANCIA: 'O prazo deste trabalho (e o período de tolerância) já passou. Fale com o professor se precisar de uma exceção.',
-  LIMITE_TENTATIVAS_ATINGIDO: 'Você já usou todas as suas tentativas para este trabalho.',
+  LIMITE_TENTATIVAS_ATINGIDO: 'Você já usou todas as suas tentativas de envio para este trabalho.',
   BACKEND_INDISPONIVEL: 'Não foi possível conectar ao servidor. Verifique sua internet e tente de novo.',
   FALHA_DE_REDE: 'Falha de conexão. Verifique sua internet e tente de novo.',
 };
@@ -462,8 +462,8 @@ document.addEventListener('click', (e) => {
   }
   if (e.target && e.target.id === 'btnTentarNovamenteGeral'){
     state.erroGeral = null;
-    if (state.erroContexto === 'confirmacao') iniciarConfirmacao();
-    else iniciarVerificacao();
+    if (state.erroContexto === 'envio') enviarArquivos();
+    else verificarArquivos();
   }
 });
 
@@ -577,138 +577,8 @@ async function carregarTrabalho(){
   state.tiposReaproveitados = {};
   Object.keys(state.arquivosExistentesPorTipo).forEach((tipo) => { state.tiposReaproveitados[tipo] = true; });
 
-  // Existe uma verificação já feita ("verificado") e nunca confirmada? Isso
-  // cobre tanto "fechou a aba sem confirmar" quanto "esqueceu mesmo de
-  // clicar em confirmar" — sempre verifica primeiro, e só passa pra tela
-  // normal se realmente não houver nada pendente. Sem isso, o Avaliador.html
-  // não teria arquivo nenhum pra avaliar (upload de verdade só acontece no
-  // clique de confirmar, nunca na verificação em si).
-  if (!r.ja_confirmado){
-    const rp = await chamarBackend('retomarTentativaPendente', {
-      id_trabalho: state.idTrabalho, id_token: state.idToken,
-      matricula_selecionada: state.matriculaDigitada || undefined,
-    });
-    if (rp.ok){
-      const tentativasRestantes = Math.max(0, r.tentativas_limite - r.tentativas_usadas);
-      const semNovaChance = tentativasRestantes <= 0 || r.modo_prazo === 'expirado';
-      state.tentativa = { token: rp.token, numero_tentativa: rp.numero_tentativa, forcar_confirmacao: semNovaChance, motivo_forcar: 'tentativa_pendente' };
-      state.relatorio = rp.relatorio;
-      state.arquivosPorTipo = {};
-      state.retomadaPermiteNovaTentativa = !semNovaChance;
-      state.tela = 'retomada';
-      render();
-      return;
-    }
-  }
-
   state.tela = 'trabalho';
   render();
-}
-
-/* ==========================================================================
-   RETOMAR TENTATIVA PENDENTE — aluno fechou a aba antes de confirmar a
-   última chance. Oferece reanexar e confirmar normalmente, ou (último
-   recurso, bem sinalizado) confirmar mesmo sem arquivo nenhum.
-   ========================================================================== */
-function renderRetomada(){
-  const rel = state.relatorio;
-  const t = state.trabalho;
-
-  async function confirmarRetomadaComReverificacao(){
-    const temAlgumArquivo = Object.values(state.arquivosPorTipo).some((arr) => arr.length) ||
-      Object.keys(state.tiposReaproveitados || {}).some((tipo) => estaReaproveitando_(tipo));
-    if (!temAlgumArquivo){
-      alert('Você não anexou nenhum arquivo novo. Se você não tem mais os arquivos, use o botão "Confirmar entrega vazia mesmo assim" abaixo em vez deste.');
-      return;
-    }
-    state.tela = 'verificando';
-    state.progressoVerificacao = 'Conferindo os arquivos reanexados...';
-    render();
-    const rVerificar = await reverificarComArquivosAtuais_();
-    if (!rVerificar.ok){
-      state.erroContexto = 'verificacao';
-      state.erroGeral = rVerificar;
-      state.tela = 'erro';
-      render();
-      return;
-    }
-    await iniciarConfirmacao();
-  }
-
-  const avisoChance = state.retomadaPermiteNovaTentativa
-    ? 'Você ainda tem tentativa(s) de confirmação disponível(is) — pode confirmar esta mesmo assim, ou começar uma nova verificação do zero.'
-    : 'Esta é a sua última tentativa de confirmação para este trabalho.';
-  const labelConfirmar = state.tentativa.forcar_confirmacao ? 'Confirmar entrega definitiva' : 'Confirmar entrega';
-  const classeConfirmar = state.tentativa.forcar_confirmacao ? 'btn teal full piscando-vermelho' : 'btn teal full';
-
-  const panel = h(`
-    <div>
-      <div class="banner warn">⚠ Você tem uma verificação da <strong>tentativa ${state.tentativa.numero_tentativa}</strong> que não chegou a ser confirmada — parece que você esqueceu de clicar em "Confirmar entrega" (ou a aba fechou antes disso). ${avisoChance}</div>
-
-      ${rel ? `
-        <div class="panel" style="text-align:center;">
-          <div class="big-icon">${rel.tudo_ok ? '✅' : '⚠️'}</div>
-          <div class="desc" style="margin-top:0;">${rel.tudo_ok ? 'Aquela verificação não encontrou pendências.' : 'Aquela verificação encontrou pendências — reveja os arquivos/itens abaixo antes de reanexar e confirmar.'}</div>
-        </div>
-        ${renderBlocosPendencias(rel)}
-      ` : ''}
-
-      <div class="panel">
-        <h2>Reanexar arquivos e confirmar</h2>
-        <div class="desc">Se você ainda tem os arquivos neste dispositivo, anexe de novo abaixo e confirme normalmente.</div>
-        <div id="uploadSlotsRetomada"></div>
-        <div class="btn-row" style="margin-top:10px;">
-          <button class="${classeConfirmar}" id="btnConfirmarRetomada" style="width:100%;">${labelConfirmar}</button>
-        </div>
-      </div>
-
-      <div class="panel" style="border-color:var(--red);">
-        <h2 style="color:var(--red);">Não tenho mais os arquivos</h2>
-        <div class="desc">Confirma sua entrega <strong>sem nenhum arquivo novo</strong> (só com o que já tiver sido enviado antes de fechar a aba, se houver). Use só se realmente não tiver como reenviar — fica sinalizado pro professor revisar.</div>
-        <div class="btn-row">
-          <button class="btn danger" id="btnConfirmarSemArquivos">Confirmar entrega vazia mesmo assim</button>
-        </div>
-      </div>
-
-      ${state.retomadaPermiteNovaTentativa ? `
-        <div class="panel">
-          <h2>Prefiro começar de novo</h2>
-          <div class="desc">Ignora esta verificação pendente e inicia uma nova verificação do zero (verificar é livre — só confirmar consome uma tentativa).</div>
-          <div class="btn-row">
-            <button class="btn secondary" id="btnComecarNovaTentativa">Começar nova tentativa</button>
-          </div>
-        </div>
-      ` : ''}
-    </div>
-  `);
-
-  const slotsWrap = panel.querySelector('#uploadSlotsRetomada');
-  (t.regras_arquivos || []).forEach((regra) => slotsWrap.appendChild(renderUploadSlot(regra)));
-
-  panel.querySelector('#btnConfirmarRetomada').addEventListener('click', confirmarRetomadaComReverificacao);
-  panel.querySelector('#btnConfirmarSemArquivos').addEventListener('click', async () => {
-    if (!confirm('Tem certeza? Isso confirma a entrega sem arquivos novos, de forma definitiva e irreversível.')) return;
-    state.tela = 'confirmando';
-    state.progressoUpload = [];
-    render();
-    const r2 = await chamarBackend('confirmarSemArquivos', { token: state.tentativa.token }, true);
-    if (!r2.ok){ state.erroContexto = 'confirmacao'; state.erroGeral = r2; state.tela = 'erro'; render(); return; }
-    state.tela = 'confirmado';
-    render();
-  });
-
-  const btnNova = panel.querySelector('#btnComecarNovaTentativa');
-  if (btnNova){
-    btnNova.addEventListener('click', () => {
-      state.tentativa = null;
-      state.relatorio = null;
-      state.arquivosPorTipo = {};
-      state.tela = 'trabalho';
-      render();
-    });
-  }
-
-  return panel;
 }
 
 /* ==========================================================================
@@ -733,12 +603,12 @@ function renderTrabalho(){
   const panel = h(`
     <div>
       ${t.modo_prazo === 'tolerancia' ? `
-        <div class="banner warn">⏰ O prazo oficial já passou, mas você ainda está no período de tolerância. <strong>Este envio, se feito agora, já será sua entrega definitiva</strong> — não há nova chance depois dele.</div>
+        <div class="banner warn">⏰ O prazo oficial já passou, mas você ainda está no período de tolerância. <strong>Se você enviar agora, já será sua entrega definitiva</strong> — não há nova chance depois dela.</div>
       ` : ''}
       <div class="panel">
         <h2>${escapeHtml(t.titulo || state.idTrabalho)}</h2>
-        <div class="desc">Prazo: ${escapeHtml(prazoTxt)} · Tentativas de confirmação: ${t.tentativas_usadas}/${t.tentativas_limite} usadas (${tentativasRestantes} restante${tentativasRestantes===1?'':'s'})</div>
-        <div class="desc" style="font-size:12px; font-style:italic; margin-top:2px;">Verificar os arquivos é livre — pode repetir quantas vezes quiser. Só CONFIRMAR a entrega consome uma tentativa.</div>
+        <div class="desc">Prazo: ${escapeHtml(prazoTxt)} · Envios: ${t.tentativas_usadas}/${t.tentativas_limite} usados (${tentativasRestantes} restante${tentativasRestantes===1?'':'s'})</div>
+        <div class="desc" style="font-size:12px; font-style:italic; margin-top:2px;">"Verificar" é só uma conferência — pode repetir quantos ciclos quiser, sem custo. Só o botão "Enviar Arquivos" manda pro Drive e consome 1 dos envios acima.</div>
         <div class="field">
           <label>Enunciado</label>
           <div style="white-space:pre-wrap; font-size:14px; line-height:1.6;">${escapeHtml(t.enunciado)}</div>
@@ -757,7 +627,7 @@ function renderTrabalho(){
         <div id="uploadSlots"></div>
       </div>
 
-      <div class="btn-row"><button class="btn teal full" id="btnVerificar" style="width:100%;">🔎 Verificar arquivos</button></div>
+      <div class="btn-row"><button class="btn teal full" id="btnVerificar" style="width:100%;">🔎 Verificar antes de enviar</button></div>
     </div>
   `);
 
@@ -777,7 +647,7 @@ function renderTrabalho(){
   (t.regras_arquivos || []).forEach((regra) => slotsWrap.appendChild(renderUploadSlot(regra)));
 
   const btnVerificar = panel.querySelector('#btnVerificar');
-  if (btnVerificar) btnVerificar.addEventListener('click', iniciarVerificacao);
+  if (btnVerificar) btnVerificar.addEventListener('click', verificarArquivos);
 
   return panel;
 }
@@ -969,21 +839,14 @@ function contagemEfetivaTipo_(tipo){
 }
 
 /* ==========================================================================
-   RE-VERIFICAR COM OS ARQUIVOS ATUAIS — monta o manifesto a partir do que
-   está em state.arquivosPorTipo/reaproveitamento agora, extrai texto quando
-   necessário, e chama verificarEnvioTrabalho no servidor. Compartilhado
-   entre o fluxo normal (iniciarVerificacao) e a tela de retomada.
-   IMPORTANTE: sem isso, "Confirmar entrega definitiva" na tela de retomada
-   chamava iniciarConfirmacao() direto usando o manifesto ANTIGO (de quando
-   a verificação original rodou) — se o aluno reanexasse um arquivo com nome
-   diferente do que estava naquele manifesto antigo (comum: reabrir o
-   seletor, escolher outra cópia do arquivo), o upload nunca batia com o
-   manifesto e a confirmação falhava com ARQUIVOS_FALTANDO SEMPRE, mesmo
-   tentando de novo, porque o manifesto nunca era atualizado. BUG REAL,
-   CORRIGIDO: agora sempre reverifica antes de confirmar.
-   Pressupõe que state.tentativa já existe (token válido).
+   MONTAR MANIFESTO + TEXTOS — a partir do que está em state.arquivosPorTipo
+   /reaproveitamento agora. Usado tanto por verificarArquivos (preview, sem
+   gravar nada) quanto por enviarArquivos (o envio de verdade) — as duas
+   precisam montar o MESMO manifesto a partir do MESMO estado local, senão
+   o relatório que o aluno viu na verificação poderia não bater com o que
+   de fato é enviado.
    ========================================================================== */
-async function reverificarComArquivosAtuais_(){
+async function montarManifestoETextos_(){
   const regras = state.trabalho.regras_arquivos || [];
 
   const manifesto = [];
@@ -1011,23 +874,17 @@ async function reverificarComArquivosAtuais_(){
     }
   }
 
-  state.progressoVerificacao = 'Conferindo regras e itens do enunciado...';
-  render();
-
-  const rVerificar = await chamarBackend('verificarEnvioTrabalho', {
-    token: state.tentativa.token,
-    manifesto_arquivos_json: JSON.stringify(manifesto),
-    textos_por_tipo_json: JSON.stringify(textosPorTipo),
-  }, true);
-
-  if (rVerificar.ok){
-    state.manifesto = manifesto;
-    state.relatorio = rVerificar.relatorio;
-  }
-  return rVerificar;
+  return { manifesto, textosPorTipo };
 }
 
-async function iniciarVerificacao(){
+/* ==========================================================================
+   VERIFICAR (preview) — NÃO grava nada no servidor, NÃO consome tentativa
+   nenhuma. Pode ser repetido quantas vezes o aluno quiser antes de decidir
+   enviar de verdade. Mostra o relatório e, se ele decidir prosseguir,
+   "Enviar Arquivos" (enviarArquivos, abaixo) é o que de fato manda pro
+   Drive e consome 1 tentativa.
+   ========================================================================== */
+async function verificarArquivos(){
   const regras = state.trabalho.regras_arquivos || [];
   const faltando = regras.filter((r) => contagemEfetivaTipo_(r.tipo) < Number(r.min || 0));
   if (faltando.length){
@@ -1036,44 +893,22 @@ async function iniciarVerificacao(){
   }
 
   state.tela = 'verificando';
-  state.progressoVerificacao = 'Iniciando verificação...';
+  state.progressoVerificacao = 'Conferindo seus arquivos (isso não envia nada ainda)...';
   render();
 
-  if (!state.tentativa){
-    const rInicio = await chamarBackend('iniciarTentativaTrabalho', {
-      id_trabalho: state.idTrabalho, id_token: state.idToken,
-      matricula_selecionada: state.matriculaDigitada || undefined,
-    });
-    if (!rInicio.ok){ state.erroContexto = 'verificacao'; state.erroGeral = rInicio; state.tela = 'erro'; render(); return; }
+  const { manifesto, textosPorTipo } = await montarManifestoETextos_();
 
-    if (rInicio.reenvio){
-      const aceita = confirm(
-        'Você já tem uma entrega confirmada para este trabalho. Continuar vai gerar uma NOVA entrega definitiva: os tipos de arquivo que você optou por "Substituir" serão trocados (a versão antiga fica guardada, só o professor acessa); os que você manteve como "já enviado" continuam como estão. Deseja continuar?'
-      );
-      if (!aceita){ state.tela = 'trabalho'; render(); return; }
-    }
-    state.tentativa = rInicio;
-  }
+  state.progressoVerificacao = 'Conferindo regras e itens do enunciado...';
+  render();
 
-  const rVerificar = await reverificarComArquivosAtuais_();
+  const rVerificar = await chamarBackend('verificarEnvioTrabalho', {
+    id_trabalho: state.idTrabalho, id_token: state.idToken,
+    matricula_selecionada: state.matriculaDigitada || undefined,
+    manifesto_arquivos_json: JSON.stringify(manifesto),
+    textos_por_tipo_json: JSON.stringify(textosPorTipo),
+  }, true);
 
   if (!rVerificar.ok){
-    if (rVerificar.erro === 'TENTATIVA_JA_FINALIZADA'){
-      // provavelmente essa verificação já tinha rodado e só a resposta se
-      // perdeu no caminho de volta — busca o relatório já calculado em vez
-      // de tratar como uma falha nova.
-      const rp = await chamarBackend('retomarTentativaPendente', {
-        id_trabalho: state.idTrabalho, id_token: state.idToken,
-        matricula_selecionada: state.matriculaDigitada || undefined,
-      });
-      if (rp.ok && rp.relatorio){
-        state.tentativa.token = rp.token;
-        state.relatorio = rp.relatorio;
-        state.tela = 'relatorio';
-        render();
-        return;
-      }
-    }
     state.erroContexto = 'verificacao';
     state.erroGeral = rVerificar;
     state.tela = 'erro';
@@ -1081,16 +916,16 @@ async function iniciarVerificacao(){
     return;
   }
 
+  state.manifesto = manifesto;
+  state.relatorioPreview = rVerificar;
   state.tela = 'relatorio';
   render();
 }
 
 /* ==========================================================================
    BLOCOS DE PENDÊNCIA (checklist de arquivos + itens obrigatórios do
-   enunciado) — compartilhado entre a tela de relatório normal e a tela de
-   retomada (aluno que esqueceu de confirmar), pra garantir que a lista de
-   itens não encontrados apareça em QUALQUER lugar que mostre o relatório,
-   não só no fluxo "feliz".
+   enunciado) — usado na tela de relatório, pra listar só o que precisa da
+   atenção do aluno (itens 100% detectados não aparecem individualmente).
    ========================================================================== */
 function renderBlocosPendencias(rel){
   const blocosChecklist = (rel.checklist_regras || []).map((c) => `
@@ -1115,17 +950,16 @@ function renderBlocosPendencias(rel){
   const totalItensFaltando = totalItensPorTipo.reduce((soma, x) => soma + x.faltando, 0);
 
   const blocosItens = Object.entries(rel.itens_por_tipo || {}).map(([tipo, itens]) => {
-    const faltando = itens.filter((it) => !it.ok).length;
+    const pendentes = itens.filter((it) => !it.ok);
+    if (!pendentes.length) return ''; // 100% detectado -> não precisa listar item por item
     return `
     <div class="panel">
-      <h2>${faltando ? '⚠️' : '✓'} ${escapeHtml(tipo)} — itens exigidos no enunciado</h2>
-      <div class="desc" style="margin-top:0;">${faltando
-        ? `${faltando} de ${itens.length} item(ns) NÃO foram localizados automaticamente no texto extraído.`
-        : `Todos os ${itens.length} item(ns) foram localizados automaticamente no texto extraído.`}</div>
-      <div>${itens.map((it) => `
-        <div class="crit-row" style="border-color:${it.ok ? 'var(--teal)' : 'var(--red)'};">
-          <div class="top"><div>${it.ok ? '✓' : '✕'} ${escapeHtml(it.item)}</div></div>
-          ${!it.ok && it.motivo ? `<div class="desc" style="margin:4px 0 0; color:var(--red);">${escapeHtml(it.motivo)}</div>` : ''}
+      <h2>⚠️ ${escapeHtml(tipo)} — itens exigidos no enunciado</h2>
+      <div class="desc" style="margin-top:0;">${pendentes.length} de ${itens.length} item(ns) NÃO foram localizados automaticamente no texto extraído.</div>
+      <div>${pendentes.map((it) => `
+        <div class="crit-row" style="border-color:var(--red);">
+          <div class="top"><div>✕ ${escapeHtml(it.item)}</div></div>
+          ${it.motivo ? `<div class="desc" style="margin:4px 0 0; color:var(--red);">${escapeHtml(it.motivo)}</div>` : ''}
           ${it.reaproveitado ? `<div class="desc" style="margin:4px 0 0; font-style:italic;">Resultado reaproveitado de uma entrega anterior — este arquivo específico não foi reconferido nesta tentativa.</div>` : ''}
         </div>
       `).join('')}</div>
@@ -1157,17 +991,17 @@ function renderBlocosPendencias(rel){
    mas quem decide se entrega mesmo assim é o aluno.
    ========================================================================== */
 function renderRelatorio(){
-  const rel = state.relatorio;
-  const t = state.tentativa;
+  const rel = state.relatorioPreview.relatorio;
+  const p = state.relatorioPreview;
 
   const panel = h(`
     <div>
       <div class="panel" style="text-align:center;">
-        <div class="desc">Verificação nº ${t.numero_tentativa} · Tentativas de confirmação: ${state.trabalho.tentativas_usadas}/${state.trabalho.tentativas_limite} usadas</div>
+        <div class="desc">Isto ainda é só uma conferência — nada foi enviado. Se você enviar agora, será a tentativa ${p.numero_tentativa_previsto} de ${p.tentativas_limite}.</div>
         <div class="big-icon">${rel.tudo_ok ? '✅' : '⚠️'}</div>
         <div class="desc" style="margin-top:0;">${rel.tudo_ok
           ? 'Conferência automática de FORMATO concluída sem pendências: arquivos certos, quantidades certas, itens exigidos localizados no texto.'
-          : 'Há pendências na conferência automática — veja o checklist abaixo. Você AINDA PODE confirmar a entrega mesmo assim.'}</div>
+          : 'Há pendências na conferência automática — veja o checklist abaixo. Você AINDA PODE enviar mesmo assim.'}</div>
         <div class="desc" style="margin-top:6px; font-size:12.5px; font-style:italic;">Isso é só uma conferência automática de formato — não avalia a qualidade ou o conteúdo do seu trabalho. Essa avaliação é feita pelo professor depois do envio.</div>
       </div>
       ${renderBlocosPendencias(rel)}
@@ -1177,35 +1011,29 @@ function renderRelatorio(){
 
   const acaoWrap = panel.querySelector('#acaoFinal');
 
-  // TODO: o texto exato do aviso antes da entrega definitiva com pendência
-  // ainda vai ser definido — este é um texto provisório.
-  const confirmarComAviso = () => {
-    if (!rel.tudo_ok && !confirm('Existem itens não localizados ou regras não atendidas na sua entrega (veja a lista acima). Você pode confirmar mesmo assim, mas isso pode afetar sua avaliação. Deseja confirmar mesmo assim?')) return;
-    iniciarConfirmacao();
+  // TODO: o texto exato do aviso antes do envio com pendência ainda vai ser
+  // definido — este é um texto provisório.
+  const enviarComAviso = () => {
+    if (!rel.tudo_ok && !confirm('Existem itens não localizados ou regras não atendidas na sua entrega (veja a lista acima). Você pode enviar mesmo assim, mas isso pode afetar sua avaliação. Deseja enviar mesmo assim?')) return;
+    enviarArquivos();
   };
 
-  if (t.forcar_confirmacao){
-    const motivo = t.motivo_forcar === 'limite_atingido'
-      ? 'Essa é sua última tentativa de confirmação disponível.'
-      : t.motivo_forcar === 'tolerancia_prazo'
-        ? 'Você está no período de tolerância do prazo.'
-        : 'Essa verificação estava pendente de confirmação.';
-    acaoWrap.appendChild(h(`<div class="banner warn">${motivo} Se você confirmar agora, esta será sua <strong>entrega definitiva</strong> — não há nova chance depois dela.</div>`));
-    const row = h(`<div class="btn-row"></div>`);
-    const btn = h(`<button class="btn teal full piscando-vermelho" style="width:100%;">Confirmar entrega definitiva</button>`);
-    btn.addEventListener('click', confirmarComAviso);
+  const row = h(`<div class="btn-row"></div>`);
+  const btnNovo = h(`<button class="btn secondary">↻ Ajustar arquivos e verificar de novo</button>`);
+  btnNovo.addEventListener('click', () => { state.relatorioPreview = null; state.tela = 'trabalho'; render(); });
+  row.appendChild(btnNovo);
+
+  if (p.seria_ultima_tentativa){
+    acaoWrap.appendChild(h(`<div class="banner warn">⚠ Esta é a sua ÚLTIMA tentativa de envio disponível para este trabalho. Se enviar agora, esta será sua <strong>entrega definitiva</strong> — não há nova chance depois dela.</div>`));
+    const btn = h(`<button class="btn teal piscando-vermelho">Confirmação Final de Envio</button>`);
+    btn.addEventListener('click', enviarComAviso);
     row.appendChild(btn);
-    acaoWrap.appendChild(row);
   } else {
-    const row = h(`<div class="btn-row"></div>`);
-    const btnNovo = h(`<button class="btn secondary">↻ Ajustar arquivos e verificar de novo</button>`);
-    btnNovo.addEventListener('click', () => { state.tentativa = null; state.tela = 'trabalho'; render(); });
-    const btnConfirmar = h(`<button class="btn teal">Confirmar entrega →</button>`);
-    btnConfirmar.addEventListener('click', confirmarComAviso);
-    row.appendChild(btnNovo);
-    row.appendChild(btnConfirmar);
-    acaoWrap.appendChild(row);
+    const btn = h(`<button class="btn teal">Enviar Arquivos — Tentativa ${p.numero_tentativa_previsto} →</button>`);
+    btn.addEventListener('click', enviarComAviso);
+    row.appendChild(btn);
   }
+  acaoWrap.appendChild(row);
 
   return panel;
 }
@@ -1228,67 +1056,93 @@ function atualizarProgresso(filename, status){
   if (state.tela === 'confirmando') render();
 }
 
-async function iniciarConfirmacao(){
+async function enviarArquivos(){
   state.tela = 'confirmando';
   state.progressoUpload = [];
   render();
+
+  const { manifesto, textosPorTipo } = await montarManifestoETextos_();
+
+  // Chama enviarArquivosTrabalho — ISSO SIM consome 1 tentativa (ou reusa a
+  // mesma, se for um retry de um envio anterior que não terminou por falha
+  // de rede; o servidor detecta isso sozinho, ver acaoEnviarArquivosTrabalho).
+  const rEnviar = await chamarBackend('enviarArquivosTrabalho', {
+    id_trabalho: state.idTrabalho, id_token: state.idToken,
+    matricula_selecionada: state.matriculaDigitada || undefined,
+    manifesto_arquivos_json: JSON.stringify(manifesto),
+    textos_por_tipo_json: JSON.stringify(textosPorTipo),
+  }, true);
+  if (!rEnviar.ok){
+    state.erroContexto = 'envio';
+    state.erroGeral = rEnviar;
+    state.tela = 'erro';
+    render();
+    return;
+  }
+  state.envio = { token: rEnviar.token, numero_tentativa: rEnviar.numero_tentativa, eh_ultima_tentativa: rEnviar.eh_ultima_tentativa };
 
   const itens = [];
   Object.entries(state.arquivosPorTipo).forEach(([tipo, files]) => {
     files.forEach((f) => itens.push({ tipo, file: f }));
   });
-
-  // O manifesto já foi validado e salvo no servidor durante verificarEnvioTrabalho
-  // — aqui só precisamos do token; o servidor atribui o índice sequencial
-  // por tipo e, se for reenvio, arquiva a entrega anterior antes de aceitar
-  // qualquer upload novo.
-  const rIniciar = await chamarBackend('iniciarEntregaDefinitivaTrabalho', {
-    token: state.tentativa.token,
-  }, true);
-  if (!rIniciar.ok){
-    state.erroContexto = 'confirmacao';
-    state.erroGeral = rIniciar;
-    state.tela = 'erro';
-    render();
-    return;
-  }
-
   state.progressoUpload = itens.map((x) => ({ filename: x.file.name, status: 'pendente' }));
   render();
 
+  const nomesFinaisEnviados = {}; // { tipo: [filename, ...] } — pra atualizar arquivosExistentesPorTipo localmente sem outra chamada
   for (const item of itens){
     atualizarProgresso(item.file.name, 'enviando');
     let base64;
     try{ base64 = await fileParaBase64(item.file); }
     catch(e){ atualizarProgresso(item.file.name, 'erro'); continue; }
     const rUp = await chamarBackend('uploadArquivoEntregaTrabalho', {
-      token: state.tentativa.token, tipo: item.tipo, filename: item.file.name,
+      token: state.envio.token, tipo: item.tipo, filename: item.file.name,
       mime_type: item.file.type || 'application/octet-stream', data_base64: base64,
     }, true);
     atualizarProgresso(item.file.name, rUp.ok ? 'ok' : 'erro');
+    if (rUp.ok){
+      (nomesFinaisEnviados[item.tipo] = nomesFinaisEnviados[item.tipo] || []).push(rUp.nome_final);
+    }
   }
 
-  const rFinalizar = await chamarBackend('finalizarEntregaDefinitivaTrabalho', { token: state.tentativa.token });
+  const rFinalizar = await chamarBackend('finalizarEntregaDefinitivaTrabalho', { token: state.envio.token });
   if (!rFinalizar.ok){
     if (rFinalizar.erro === 'ARQUIVOS_FALTANDO'){
-      state.erroGeral = { erro: 'ARQUIVOS_FALTANDO', detalhe: 'Alguns arquivos não foram recebidos corretamente: ' + (rFinalizar.faltando || []).map((f) => f.filename).join(', ') + '. Tente novamente — os arquivos que já foram recebidos não precisam ser reenviados do zero, mas por segurança a entrega inteira será reconferida.' };
+      state.erroGeral = { erro: 'ARQUIVOS_FALTANDO', detalhe: 'Alguns arquivos não foram recebidos corretamente: ' + (rFinalizar.faltando || []).map((f) => f.filename).join(', ') + '. Clique em tentar novamente — os arquivos que já foram recebidos não precisam ser reenviados do zero, mas por segurança o envio inteiro será reconferido.' };
     } else {
       state.erroGeral = rFinalizar;
     }
-    state.erroContexto = 'confirmacao';
+    state.erroContexto = 'envio';
     state.tela = 'erro';
     render();
     return;
   }
 
-  state.tela = 'confirmado';
+  if (rFinalizar.confirmado){
+    state.tela = 'confirmado';
+    render();
+    return;
+  }
+
+  // Não é a entrega final — atualiza localmente o que já está no Drive
+  // (pros tipos reaproveitados, o que já estava; pros recém-enviados, o
+  // nome final que acabou de subir), pra reaproveitamento funcionar de
+  // cara se o aluno decidir fazer outro ciclo agora.
+  Object.entries(nomesFinaisEnviados).forEach(([tipo, nomes]) => {
+    state.arquivosExistentesPorTipo[tipo] = nomes.map((filename) => ({ filename }));
+  });
+  state.arquivosPorTipo = {};
+  Object.keys(state.arquivosExistentesPorTipo).forEach((tipo) => { state.tiposReaproveitados[tipo] = true; });
+  state.trabalho.tentativas_usadas = state.envio.numero_tentativa;
+  state.relatorioPreview = null;
+
+  state.tela = 'enviado_parcial';
   render();
 }
 
 function renderConfirmando(){
   return h(`
     <div class="panel">
-      <h2>Enviando entrega definitiva...</h2>
+      <h2>Enviando arquivos...</h2>
       <div class="desc">Não feche esta aba até terminar.</div>
       <div>
         ${state.progressoUpload.map((p) => `
@@ -1310,6 +1164,28 @@ function renderConfirmado(){
       <div class="desc">Seu trabalho foi registrado com sucesso. Você pode fechar esta página.</div>
     </div>
   `);
+}
+
+function renderEnviadoParcial(){
+  const t = state.trabalho;
+  const restantes = Math.max(0, t.tentativas_limite - t.tentativas_usadas);
+  const panel = h(`
+    <div class="panel center-msg">
+      <div class="big-icon">📤</div>
+      <h2>Arquivos enviados</h2>
+      <div class="desc">Seus arquivos foram recebidos no Drive (tentativa ${escapeHtml(String(state.envio.numero_tentativa))} de ${escapeHtml(String(t.tentativas_limite))}). <strong>Isso ainda NÃO é a entrega definitiva</strong> — o professor só considera oficial quando você usar sua última tentativa disponível, ou clicar em "Confirmação Final de Envio".</div>
+      <div class="desc" style="margin-top:8px;">Você ainda tem ${restantes} tentativa${restantes===1?'':'s'} de envio disponível${restantes===1?'':'is'}.</div>
+      <div class="btn-row" style="justify-content:center; margin-top:16px;">
+        <button class="btn teal" id="btnNovoCicloEnvio">Fazer novo ciclo (verificar e reenviar)</button>
+      </div>
+    </div>
+  `);
+  panel.querySelector('#btnNovoCicloEnvio').addEventListener('click', () => {
+    state.envio = null;
+    state.tela = 'trabalho';
+    render();
+  });
+  return panel;
 }
 
 /* ==========================================================================
