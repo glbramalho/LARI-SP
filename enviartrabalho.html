@@ -224,7 +224,7 @@ let BACKEND_URL = "";
    horário de Fortaleza) toda vez que este arquivo for editado, ANTES de
    entregar a versão nova. Não precisa tocar em mais nada além desta linha.
    ========================================================================== */
-const ULTIMA_ATUALIZACAO_FRONTEND = "30/08/2026 17:00";
+const ULTIMA_ATUALIZACAO_FRONTEND = "30/08/2026 17:30";
 
 async function carregarMarcadorVersao(){
   const el = document.getElementById('marcadorVersao');
@@ -449,7 +449,7 @@ const MENSAGENS_ERRO = {
   ENTREGA_JA_CONFIRMADA: 'Sua entrega para este trabalho já foi confirmada.',
   ENVIO_JA_FINALIZADO: 'Este envio já tinha sido concluído — atualize a página.',
   FORA_DO_PRAZO_E_TOLERANCIA: 'O prazo deste trabalho (e o período de tolerância) já passou. Fale com o professor se precisar de uma exceção.',
-  LIMITE_TENTATIVAS_ATINGIDO: 'Você já usou todas as suas tentativas de envio para este trabalho.',
+  LIMITE_TENTATIVAS_ATINGIDO: 'Você já usou todas as suas entregas disponíveis para este trabalho.',
   BACKEND_INDISPONIVEL: 'Não foi possível conectar ao servidor. Verifique sua internet e tente de novo.',
   FALHA_DE_REDE: 'Falha de conexão. Verifique sua internet e tente de novo.',
 };
@@ -607,8 +607,8 @@ function renderTrabalho(){
       ` : ''}
       <div class="panel">
         <h2>${escapeHtml(t.titulo || state.idTrabalho)}</h2>
-        <div class="desc">Prazo: ${escapeHtml(prazoTxt)} · Envios: ${t.tentativas_usadas}/${t.tentativas_limite} usados (${tentativasRestantes} restante${tentativasRestantes===1?'':'s'})</div>
-        <div class="desc" style="font-size:12px; font-style:italic; margin-top:2px;">"Verificar" é só uma conferência — pode repetir quantos ciclos quiser, sem custo. Só o botão "Enviar Arquivos" manda pro Drive e consome 1 dos envios acima.</div>
+        <div class="desc">Prazo: ${escapeHtml(prazoTxt)} · Entregas: ${t.tentativas_usadas}/${t.tentativas_limite} usadas (${tentativasRestantes} restante${tentativasRestantes===1?'':'s'})</div>
+        <div class="desc" style="font-size:12px; font-style:italic; margin-top:2px;">"Verificar" é só uma conferência — pode repetir quantos ciclos quiser, sem custo. Só o botão "Enviar Arquivos" manda pro Drive e consome 1 das entregas acima.</div>
         <div class="field">
           <label>Enunciado</label>
           <div style="white-space:pre-wrap; font-size:14px; line-height:1.6;">${escapeHtml(t.enunciado)}</div>
@@ -960,7 +960,7 @@ function renderBlocosPendencias(rel){
         <div class="crit-row" style="border-color:var(--red);">
           <div class="top"><div>✕ ${escapeHtml(it.item)}</div></div>
           ${it.motivo ? `<div class="desc" style="margin:4px 0 0; color:var(--red);">${escapeHtml(it.motivo)}</div>` : ''}
-          ${it.reaproveitado ? `<div class="desc" style="margin:4px 0 0; font-style:italic;">Resultado reaproveitado de uma entrega anterior — este arquivo específico não foi reconferido nesta tentativa.</div>` : ''}
+          ${it.reaproveitado ? `<div class="desc" style="margin:4px 0 0; font-style:italic;">Resultado reaproveitado de uma entrega anterior — este arquivo específico não foi reconferido nesta entrega.</div>` : ''}
         </div>
       `).join('')}</div>
     </div>
@@ -997,7 +997,7 @@ function renderRelatorio(){
   const panel = h(`
     <div>
       <div class="panel" style="text-align:center;">
-        <div class="desc">Isto ainda é só uma conferência — nada foi enviado. Se você enviar agora, será a tentativa ${p.numero_tentativa_previsto} de ${p.tentativas_limite}.</div>
+        <div class="desc">Isto ainda é só uma conferência — nada foi enviado. Se você enviar agora, será a entrega ${p.numero_tentativa_previsto} de ${p.tentativas_limite}.</div>
         <div class="big-icon">${rel.tudo_ok ? '✅' : '⚠️'}</div>
         <div class="desc" style="margin-top:0;">${rel.tudo_ok
           ? 'Conferência automática de FORMATO concluída sem pendências: arquivos certos, quantidades certas, itens exigidos localizados no texto.'
@@ -1024,12 +1024,12 @@ function renderRelatorio(){
   row.appendChild(btnNovo);
 
   if (p.seria_ultima_tentativa){
-    acaoWrap.appendChild(h(`<div class="banner warn">⚠ Esta é a sua ÚLTIMA tentativa de envio disponível para este trabalho. Se enviar agora, esta será sua <strong>entrega definitiva</strong> — não há nova chance depois dela.</div>`));
+    acaoWrap.appendChild(h(`<div class="banner warn">⚠ Esta é a sua ÚLTIMA entrega disponível para este trabalho. Se enviar agora, esta será sua <strong>entrega definitiva</strong> — não há nova chance depois dela.</div>`));
     const btn = h(`<button class="btn teal piscando-vermelho">Confirmação Final de Envio</button>`);
     btn.addEventListener('click', enviarComAviso);
     row.appendChild(btn);
   } else {
-    const btn = h(`<button class="btn teal">Enviar Arquivos — Tentativa ${p.numero_tentativa_previsto} →</button>`);
+    const btn = h(`<button class="btn teal">Enviar Arquivos — Entrega ${p.numero_tentativa_previsto} →</button>`);
     btn.addEventListener('click', enviarComAviso);
     row.appendChild(btn);
   }
@@ -1173,8 +1173,8 @@ function renderEnviadoParcial(){
     <div class="panel center-msg">
       <div class="big-icon">📤</div>
       <h2>Arquivos enviados</h2>
-      <div class="desc">Seus arquivos foram recebidos no Drive (tentativa ${escapeHtml(String(state.envio.numero_tentativa))} de ${escapeHtml(String(t.tentativas_limite))}). <strong>Isso ainda NÃO é a entrega definitiva</strong> — o professor só considera oficial quando você usar sua última tentativa disponível, ou clicar em "Confirmação Final de Envio".</div>
-      <div class="desc" style="margin-top:8px;">Você ainda tem ${restantes} tentativa${restantes===1?'':'s'} de envio disponível${restantes===1?'':'is'}.</div>
+      <div class="desc">Seus arquivos foram recebidos para avaliação.</div>
+      <div class="desc" style="margin-top:8px;">Você ainda tem ${restantes} envio${restantes===1?'':'s'} disponíve${restantes===1?'l':'is'} dentro do prazo de entrega.</div>
       <div class="btn-row" style="justify-content:center; margin-top:16px;">
         <button class="btn teal" id="btnNovoCicloEnvio">Fazer novo ciclo (verificar e reenviar)</button>
       </div>
