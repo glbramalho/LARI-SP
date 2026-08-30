@@ -51,11 +51,16 @@ code, .mono{font-family:var(--font-mono);}
 .topbar{
   background:var(--graphite);
   color:#EFEBDD;
-  padding:18px 24px;
+  padding:14px 24px;
   display:flex;
   align-items:center;
+  flex-wrap:wrap;
+  row-gap:6px;
   gap:14px;
   border-bottom:3px solid var(--teal);
+  position:sticky;
+  top:0;
+  z-index:100;
 }
 .topbar .mark{width:10px;height:10px;border-radius:50%;background:var(--teal);flex-shrink:0;}
 .topbar h1{font-size:17px;color:#fff;font-weight:600;}
@@ -63,6 +68,13 @@ code, .mono{font-family:var(--font-mono);}
 .topbar .spacer{flex:1;}
 .topbar .userchip{display:flex; align-items:center; gap:8px; font-size:12.5px; color:#DCD8C8;}
 .topbar .userchip img{width:24px;height:24px;border-radius:50%;}
+.topbar .relogio{font-family:var(--font-mono); font-size:12.5px; color:#DCD8C8; white-space:nowrap;}
+.topbar .relogio .contagem{font-weight:600; color:#9FD8C4;}
+.topbar .relogio .contagem.urgente-24h{color:#F0A94E;}
+.topbar .relogio .contagem.urgente-2h{color:#FF7B67; animation:relogioPisca 1s steps(1) infinite;}
+.topbar .relogio .contagem.encerrado{color:#FF7B67; opacity:.85;}
+@keyframes relogioPisca{ 50%{opacity:.25;} }
+.topbar .versaoMarcador{font-family:var(--font-mono); font-size:10px; line-height:1.55; color:#8a8577; text-align:right; white-space:nowrap;}
 
 .wrap{max-width:660px; margin:0 auto; padding:28px 18px 80px;}
 
@@ -185,7 +197,8 @@ footer.note{color:var(--muted); font-size:12px; margin-top:26px;}
     <div class="sub" id="topbarSub">carregando...</div>
   </div>
   <div class="spacer"></div>
-  <div id="marcadorVersao" style="font-family:var(--font-mono); font-size:11px; color:#8a8577; margin-right:6px; white-space:nowrap;"></div>
+  <div class="relogio" id="relogioTopbar"></div>
+  <div id="marcadorVersao" class="versaoMarcador"></div>
   <div class="userchip" id="userChip" style="display:none;"></div>
 </div>
 
@@ -209,15 +222,83 @@ let BACKEND_URL = "";
    horário de Fortaleza) toda vez que este arquivo for editado, ANTES de
    entregar a versão nova. Não precisa tocar em mais nada além desta linha.
    ========================================================================== */
-const ULTIMA_ATUALIZACAO_FRONTEND = "27/08/2026 22:00";
+const ULTIMA_ATUALIZACAO_FRONTEND = "27/08/2026 22:45";
 
 async function carregarMarcadorVersao(){
   const el = document.getElementById('marcadorVersao');
   if (!el) return;
-  el.innerHTML = `<b>···</b> | ${ULTIMA_ATUALIZACAO_FRONTEND}`;
+  el.innerHTML = `<div><b>···</b></div><div>${ULTIMA_ATUALIZACAO_FRONTEND}</div>`;
   const r = await chamarBackend('getStatusBackend', {});
   const backend = (r.ok && r.atualizado_backend) ? r.atualizado_backend : '?';
-  el.innerHTML = `<b>${backend}</b> | ${ULTIMA_ATUALIZACAO_FRONTEND}`;
+  el.innerHTML = `<div><b>${backend}</b></div><div>${ULTIMA_ATUALIZACAO_FRONTEND}</div>`;
+}
+
+/* ==========================================================================
+   RELÓGIO DO CABEÇALHO — data/hora atual em tempo real + contagem
+   regressiva até o prazo do trabalho carregado (quando houver um), exibida
+   entre parênteses. Atualiza a cada segundo.
+   Tanto o "agora" quanto o prazo são calculados no fuso de Fortaleza
+   (America/Fortaleza = UTC-3 o ano todo, sem horário de verão desde 2019) —
+   nunca no fuso do navegador do aluno — pra bater exatamente com a hora que
+   o servidor usa pra decidir se o prazo já venceu.
+   ========================================================================== */
+function agoraFortaleza_(){
+  // Desloca o instante UTC em -3h e depois lê pelos getters *UTC*, que não
+  // aplicam o fuso do navegador de novo — dá o relógio de parede de
+  // Fortaleza independente de onde o aluno estiver.
+  return new Date(Date.now() - 3 * 3600 * 1000);
+}
+function formatarDataHoraFortaleza_(d){
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const yyyy = d.getUTCFullYear();
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  const mi = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
+}
+function calcularPrazoInstante_(prazoData, prazoHora){
+  if (!prazoData) return null;
+  const hora = prazoHora || '23:59';
+  // ISO com offset explícito -03:00 — o navegador resolve pro instante
+  // absoluto certo independente do fuso local dele.
+  const d = new Date(`${prazoData}T${hora}:00-03:00`);
+  return isNaN(d.getTime()) ? null : d;
+}
+function formatarContagemRegressiva_(diffMs){
+  if (diffMs <= 0) return { texto: 'prazo encerrado', nivel: 'encerrado', icone: '⛔' };
+  const horas = diffMs / 3600000;
+  if (horas >= 24){
+    const dias = Math.floor(horas / 24);
+    return { texto: `${dias}d`, nivel: 'normal', icone: '⏳' };
+  }
+  if (horas >= 2){
+    const h = Math.floor(horas);
+    const m = Math.floor((diffMs % 3600000) / 60000);
+    return { texto: `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`, nivel: 'urgente-24h', icone: '⏳' };
+  }
+  const h = Math.floor(horas);
+  const m = Math.floor((diffMs % 3600000) / 60000);
+  return { texto: `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`, nivel: 'urgente-2h', icone: '⏰' };
+}
+function atualizarRelogioTopbar(){
+  const el = document.getElementById('relogioTopbar');
+  if (!el) return;
+  let html = formatarDataHoraFortaleza_(agoraFortaleza_());
+
+  const t = state.trabalho;
+  if (t && t.prazo_data){
+    const prazoInstante = calcularPrazoInstante_(t.prazo_data, t.prazo_hora);
+    if (prazoInstante){
+      const { texto, nivel, icone } = formatarContagemRegressiva_(prazoInstante.getTime() - Date.now());
+      html += ` <span class="contagem ${nivel}">(${icone} ${texto})</span>`;
+    }
+  }
+  el.textContent = '';
+  el.innerHTML = html;
+}
+function iniciarRelogioTopbar(){
+  atualizarRelogioTopbar();
+  setInterval(atualizarRelogioTopbar, 1000);
 }
 
 // Necessário pro parseReportPDF (arquivo compartilhado) funcionar em thread
@@ -1243,6 +1324,7 @@ function renderConfirmado(){
 $('#topbarSub').textContent = 'CLP + SCADA · autoavaliação';
 render();
 carregarMarcadorVersao();
+iniciarRelogioTopbar();
 
 
 
