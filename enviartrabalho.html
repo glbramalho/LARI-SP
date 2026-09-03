@@ -1,222 +1,572 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LARI SP - Enviar trabalho</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
-<style>
-:root{
-  --paper:#F1EEE5;
-  --panel:#FBFAF6;
-  --graphite:#1E2124;
-  --graphite-2:#2A2E32;
-  --ink:#24221D;
-  --muted:#726C5E;
-  --rail:#CBC3AF;
-  --rail-dim:#DEDACB;
-  --teal:#2E7D6B;
-  --teal-bg:#E4EFEA;
-  --amber:#C9821F;
-  --amber-bg:#F6EAD4;
-  --red:#B33F2E;
-  --red-bg:#F5E3DE;
-  --line:#D8D2C0;
-  --shadow: 0 1px 2px rgba(30,28,20,.06), 0 8px 24px rgba(30,28,20,.05);
-  --radius: 10px;
-  --font-display: 'Space Grotesk', sans-serif;
-  --font-body: 'IBM Plex Sans', sans-serif;
-  --font-mono: 'IBM Plex Mono', monospace;
-}
-*{box-sizing:border-box;}
-html,body{margin:0;padding:0;}
-body{
-  background:var(--paper);
-  color:var(--ink);
-  font-family:var(--font-body);
-  font-size:14.5px;
-  line-height:1.5;
-  -webkit-font-smoothing:antialiased;
-}
-::selection{background:var(--teal);color:#fff;}
-a{color:var(--teal);}
-button{font-family:var(--font-body);}
-h1,h2,h3{font-family:var(--font-display); margin:0; letter-spacing:-0.01em;}
-code, .mono{font-family:var(--font-mono);}
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>LARI SP - Enviar trabalho</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+            rel="stylesheet"
+        />
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+        <script
+            src="https://accounts.google.com/gsi/client"
+            async
+            defer
+        ></script>
+        <style>
+            :root {
+                --paper: #f1eee5;
+                --panel: #fbfaf6;
+                --graphite: #1e2124;
+                --graphite-2: #2a2e32;
+                --ink: #24221d;
+                --muted: #726c5e;
+                --rail: #cbc3af;
+                --rail-dim: #dedacb;
+                --teal: #2e7d6b;
+                --teal-bg: #e4efea;
+                --amber: #c9821f;
+                --amber-bg: #f6ead4;
+                --red: #b33f2e;
+                --red-bg: #f5e3de;
+                --line: #d8d2c0;
+                --shadow:
+                    0 1px 2px rgba(30, 28, 20, 0.06),
+                    0 8px 24px rgba(30, 28, 20, 0.05);
+                --radius: 10px;
+                --font-display: "Space Grotesk", sans-serif;
+                --font-body: "IBM Plex Sans", sans-serif;
+                --font-mono: "IBM Plex Mono", monospace;
+            }
+            * {
+                box-sizing: border-box;
+            }
+            html,
+            body {
+                margin: 0;
+                padding: 0;
+            }
+            body {
+                background: var(--paper);
+                color: var(--ink);
+                font-family: var(--font-body);
+                font-size: 14.5px;
+                line-height: 1.5;
+                -webkit-font-smoothing: antialiased;
+            }
+            ::selection {
+                background: var(--teal);
+                color: #fff;
+            }
+            a {
+                color: var(--teal);
+            }
+            button {
+                font-family: var(--font-body);
+            }
+            h1,
+            h2,
+            h3 {
+                font-family: var(--font-display);
+                margin: 0;
+                letter-spacing: -0.01em;
+            }
+            code,
+            .mono {
+                font-family: var(--font-mono);
+            }
 
-.topbar{
-  background:var(--graphite);
-  color:#EFEBDD;
-  padding:14px 24px;
-  display:flex;
-  align-items:center;
-  flex-wrap:wrap;
-  row-gap:6px;
-  gap:14px;
-  border-bottom:3px solid var(--teal);
-  position:sticky;
-  top:0;
-  z-index:100;
-}
-.topbar .mark{width:10px;height:10px;border-radius:50%;background:var(--teal);flex-shrink:0;}
-.topbar h1{font-size:17px;color:#fff;font-weight:600;}
-.topbar .sub{font-size:12px;color:#B9B4A2;margin-top:2px;}
-.topbar .spacer{flex:1;}
-.topbar .userchip{display:flex; align-items:center; gap:8px; font-size:12.5px; color:#DCD8C8;}
-.topbar .userchip img{width:24px;height:24px;border-radius:50%;}
-.topbar .relogio{font-family:var(--font-mono); font-size:12.5px; color:#DCD8C8; white-space:nowrap;}
-.topbar .relogio .contagem{font-weight:600; color:#9FD8C4;}
-.topbar .relogio .contagem.urgente-24h{color:#F0A94E;}
-.topbar .relogio .contagem.urgente-2h{color:#FF7B67; animation:relogioPisca 1s steps(1) infinite;}
-.topbar .relogio .contagem.encerrado{color:#FF7B67; opacity:.85;}
-@keyframes relogioPisca{ 50%{opacity:.25;} }
-.btn.piscando-vermelho{ background:var(--red); border-color:var(--red); animation:relogioPisca 1s steps(1) infinite; }
-.topbar .versaoMarcador{font-family:var(--font-mono); font-size:10px; line-height:1.55; color:#8a8577; text-align:right; white-space:nowrap;}
+            .topbar {
+                background: var(--graphite);
+                color: #efebdd;
+                padding: 14px 24px;
+                display: flex;
+                align-items: center;
+                flex-wrap: wrap;
+                row-gap: 6px;
+                gap: 14px;
+                border-bottom: 3px solid var(--teal);
+                position: sticky;
+                top: 0;
+                z-index: 100;
+            }
+            .topbar .mark {
+                width: 10px;
+                height: 10px;
+                border-radius: 50%;
+                background: var(--teal);
+                flex-shrink: 0;
+            }
+            .topbar h1 {
+                font-size: 17px;
+                color: #fff;
+                font-weight: 600;
+            }
+            .topbar .sub {
+                font-size: 12px;
+                color: #b9b4a2;
+                margin-top: 2px;
+            }
+            .topbar .spacer {
+                flex: 1;
+            }
+            .topbar .userchip {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 12.5px;
+                color: #dcd8c8;
+            }
+            .topbar .userchip img {
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
+            }
+            .topbar .userchip .pseudo {
+                background: var(--teal-bg);
+                color: var(--teal);
+                font-weight: 600;
+                font-size: 11px;
+                padding: 2px 8px;
+                border-radius: 999px;
+                letter-spacing: 0.2px;
+            }
+            .topbar .relogio {
+                font-family: var(--font-mono);
+                font-size: 12.5px;
+                color: #dcd8c8;
+                white-space: nowrap;
+            }
+            .topbar .relogio .contagem {
+                font-weight: 600;
+                color: #9fd8c4;
+            }
+            .topbar .relogio .contagem.urgente-24h {
+                color: #f0a94e;
+            }
+            .topbar .relogio .contagem.urgente-2h {
+                color: #ff7b67;
+                animation: relogioPisca 1s steps(1) infinite;
+            }
+            .topbar .relogio .contagem.encerrado {
+                color: #ff7b67;
+                opacity: 0.85;
+            }
+            @keyframes relogioPisca {
+                50% {
+                    opacity: 0.25;
+                }
+            }
+            .btn.piscando-vermelho {
+                background: var(--red);
+                border-color: var(--red);
+                animation: relogioPisca 1s steps(1) infinite;
+            }
+            .topbar .versaoMarcador {
+                font-family: var(--font-mono);
+                font-size: 10px;
+                line-height: 1.55;
+                color: #8a8577;
+                text-align: right;
+                white-space: nowrap;
+            }
 
-.wrap{max-width:660px; margin:0 auto; padding:28px 18px 80px;}
+            .wrap {
+                max-width: 660px;
+                margin: 0 auto;
+                padding: 28px 18px 80px;
+            }
 
-.panel{
-  background:var(--panel);
-  border:1px solid var(--line);
-  border-radius:var(--radius);
-  padding:24px 26px;
-  box-shadow:var(--shadow);
-  margin-bottom:20px;
-}
-.panel h2{font-size:19px; margin-bottom:4px;}
-.panel .desc{color:var(--muted); font-size:13.5px; margin-bottom:16px;}
-.field{margin-bottom:16px;}
-.field label{display:block; font-size:12.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin-bottom:6px;}
-.field .hint{font-size:12px; color:var(--muted); margin-top:5px;}
+            .panel {
+                background: var(--panel);
+                border: 1px solid var(--line);
+                border-radius: var(--radius);
+                padding: 24px 26px;
+                box-shadow: var(--shadow);
+                margin-bottom: 20px;
+            }
+            .panel h2 {
+                font-size: 19px;
+                margin-bottom: 4px;
+            }
+            .panel .desc {
+                color: var(--muted);
+                font-size: 13.5px;
+                margin-bottom: 16px;
+            }
+            .field {
+                margin-bottom: 16px;
+            }
+            .field label {
+                display: block;
+                font-size: 12.5px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                color: var(--muted);
+                margin-bottom: 6px;
+            }
+            .field .hint {
+                font-size: 12px;
+                color: var(--muted);
+                margin-top: 5px;
+            }
 
-textarea, input[type=text], input[type=password], input[type=number], select{
-  width:100%;
-  border:1px solid var(--line);
-  background:#fff;
-  border-radius:7px;
-  padding:10px 12px;
-  font-family:var(--font-body);
-  font-size:14px;
-  color:var(--ink);
-}
-textarea{min-height:120px; resize:vertical; font-family:var(--font-mono); font-size:12.5px; line-height:1.6;}
-textarea:focus, input:focus, select:focus{outline:2px solid var(--teal); outline-offset:1px; border-color:var(--teal);}
-input[type=file]{font-size:13px;}
+            textarea,
+            input[type="text"],
+            input[type="password"],
+            input[type="number"],
+            select {
+                width: 100%;
+                border: 1px solid var(--line);
+                background: #fff;
+                border-radius: 7px;
+                padding: 10px 12px;
+                font-family: var(--font-body);
+                font-size: 14px;
+                color: var(--ink);
+            }
+            textarea {
+                min-height: 120px;
+                resize: vertical;
+                font-family: var(--font-mono);
+                font-size: 12.5px;
+                line-height: 1.6;
+            }
+            textarea:focus,
+            input:focus,
+            select:focus {
+                outline: 2px solid var(--teal);
+                outline-offset: 1px;
+                border-color: var(--teal);
+            }
+            input[type="file"] {
+                font-size: 13px;
+            }
 
-.btn{
-  font-family:var(--font-body);
-  font-weight:600;
-  font-size:13.5px;
-  padding:10px 16px;
-  border-radius:8px;
-  border:none;
-  background:var(--graphite);
-  color:#fff;
-  cursor:pointer;
-  transition:background .15s;
-}
-.btn:hover{background:var(--graphite-2);}
-.btn:disabled{opacity:.45; cursor:not-allowed;}
-.btn.secondary{background:#fff; color:var(--ink); border:1px solid var(--line);}
-.btn.secondary:hover{background:var(--rail-dim);}
-.btn.teal{background:var(--teal);}
-.btn.teal:hover{background:#276b5c;}
-.btn.danger{background:#fff; color:var(--red); border:1px solid var(--red);}
-.btn.small{padding:6px 11px; font-size:12.5px;}
-.btn.full{width:100%; text-align:center;}
-.btn-row{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+            .btn {
+                font-family: var(--font-body);
+                font-weight: 600;
+                font-size: 13.5px;
+                padding: 10px 16px;
+                border-radius: 8px;
+                border: none;
+                background: var(--graphite);
+                color: #fff;
+                cursor: pointer;
+                transition: background 0.15s;
+            }
+            .btn:hover {
+                background: var(--graphite-2);
+            }
+            .btn:disabled {
+                opacity: 0.45;
+                cursor: not-allowed;
+            }
+            .btn.secondary {
+                background: #fff;
+                color: var(--ink);
+                border: 1px solid var(--line);
+            }
+            .btn.secondary:hover {
+                background: var(--rail-dim);
+            }
+            .btn.teal {
+                background: var(--teal);
+            }
+            .btn.teal:hover {
+                background: #276b5c;
+            }
+            .btn.danger {
+                background: #fff;
+                color: var(--red);
+                border: 1px solid var(--red);
+            }
+            .btn.small {
+                padding: 6px 11px;
+                font-size: 12.5px;
+            }
+            .btn.full {
+                width: 100%;
+                text-align: center;
+            }
+            .btn-row {
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+                align-items: center;
+            }
 
-.status-line{font-size:13px; color:var(--muted); margin-top:10px; display:flex; align-items:center; gap:8px;}
-.status-line.err{color:var(--red);}
-.status-line.ok{color:var(--teal);}
+            .status-line {
+                font-size: 13px;
+                color: var(--muted);
+                margin-top: 10px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .status-line.err {
+                color: var(--red);
+            }
+            .status-line.ok {
+                color: var(--teal);
+            }
 
-.banner{border-radius:9px; padding:12px 16px; font-size:13.5px; margin-bottom:16px; border:1px solid;}
-.banner.info{background:var(--teal-bg); border-color:#B9D6CB; color:#1E5747;}
-.banner.warn{background:var(--amber-bg); border-color:#E3C68A; color:#7A5313;}
-.banner.err{background:var(--red-bg); border-color:#DDA79A; color:#7A2E1F;}
+            .banner {
+                border-radius: 9px;
+                padding: 12px 16px;
+                font-size: 13.5px;
+                margin-bottom: 16px;
+                border: 1px solid;
+            }
+            .banner.info {
+                background: var(--teal-bg);
+                border-color: #b9d6cb;
+                color: #1e5747;
+            }
+            .banner.warn {
+                background: var(--amber-bg);
+                border-color: #e3c68a;
+                color: #7a5313;
+            }
+            .banner.err {
+                background: var(--red-bg);
+                border-color: #dda79a;
+                color: #7a2e1f;
+            }
 
-.crit-row{border:1px solid var(--line); border-radius:9px; padding:14px; margin-bottom:10px; background:#fff;}
-.crit-row .top{display:flex; justify-content:space-between; gap:12px; align-items:flex-start;}
-.crit-row .crit-text{font-weight:600; font-size:14px;}
-.crit-row .cat{font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted);}
-.crit-row .peso{font-family:var(--font-mono); font-size:12px; color:var(--muted); white-space:nowrap;}
+            .crit-row {
+                border: 1px solid var(--line);
+                border-radius: 9px;
+                padding: 14px;
+                margin-bottom: 10px;
+                background: #fff;
+            }
+            .crit-row .top {
+                display: flex;
+                justify-content: space-between;
+                gap: 12px;
+                align-items: flex-start;
+            }
+            .crit-row .crit-text {
+                font-weight: 600;
+                font-size: 14px;
+            }
+            .crit-row .cat {
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                color: var(--muted);
+            }
+            .crit-row .peso {
+                font-family: var(--font-mono);
+                font-size: 12px;
+                color: var(--muted);
+                white-space: nowrap;
+            }
 
-.status-pill{font-size:11px; font-weight:700; text-transform:uppercase; padding:3px 9px; border-radius:20px; letter-spacing:.03em;}
-.status-pill.atendido{background:var(--teal-bg); color:var(--teal);}
-.status-pill.parcial{background:var(--amber-bg); color:var(--amber);}
-.status-pill.nao_atendido{background:var(--red-bg); color:var(--red);}
-.evidence-box{
-  background:var(--paper); border-left:3px solid var(--rail); padding:8px 12px; margin-top:8px;
-  font-family:var(--font-mono); font-size:12px; color:var(--ink); white-space:pre-wrap;
-}
-.grade-pill{display:inline-block; font-family:var(--font-mono); font-weight:700; font-size:20px; padding:4px 14px; border-radius:8px;}
-.grade-pill.high{background:var(--teal-bg); color:var(--teal);}
-.grade-pill.mid{background:var(--amber-bg); color:var(--amber);}
-.grade-pill.low{background:var(--red-bg); color:var(--red);}
+            .status-pill {
+                font-size: 11px;
+                font-weight: 700;
+                text-transform: uppercase;
+                padding: 3px 9px;
+                border-radius: 20px;
+                letter-spacing: 0.03em;
+            }
+            .status-pill.atendido {
+                background: var(--teal-bg);
+                color: var(--teal);
+            }
+            .status-pill.parcial {
+                background: var(--amber-bg);
+                color: var(--amber);
+            }
+            .status-pill.nao_atendido {
+                background: var(--red-bg);
+                color: var(--red);
+            }
+            .evidence-box {
+                background: var(--paper);
+                border-left: 3px solid var(--rail);
+                padding: 8px 12px;
+                margin-top: 8px;
+                font-family: var(--font-mono);
+                font-size: 12px;
+                color: var(--ink);
+                white-space: pre-wrap;
+            }
+            .grade-pill {
+                display: inline-block;
+                font-family: var(--font-mono);
+                font-weight: 700;
+                font-size: 20px;
+                padding: 4px 14px;
+                border-radius: 8px;
+            }
+            .grade-pill.high {
+                background: var(--teal-bg);
+                color: var(--teal);
+            }
+            .grade-pill.mid {
+                background: var(--amber-bg);
+                color: var(--amber);
+            }
+            .grade-pill.low {
+                background: var(--red-bg);
+                color: var(--red);
+            }
 
-.upload-slot{border:1.5px dashed var(--rail); border-radius:9px; padding:14px 16px; margin-bottom:12px; background:#fff;}
-.upload-slot .slot-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
-.upload-slot .slot-title{font-weight:600; font-size:13.5px;}
-.upload-slot .slot-rule{font-size:11.5px; color:var(--muted); font-family:var(--font-mono);}
-.upload-slot.filled{border-style:solid; border-color:var(--teal);}
-.upload-slot.error{border-style:solid; border-color:var(--red);}
-.file-chip{
-  display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line); border-radius:20px;
-  padding:4px 10px 4px 12px; font-size:12.5px; margin:3px 6px 0 0; background:var(--paper);
-}
-.file-chip button{background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;line-height:1;padding:0;}
-.file-chip button:hover{color:var(--red);}
+            .upload-slot {
+                border: 1.5px dashed var(--rail);
+                border-radius: 9px;
+                padding: 14px 16px;
+                margin-bottom: 12px;
+                background: #fff;
+            }
+            .upload-slot .slot-head {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 8px;
+            }
+            .upload-slot .slot-title {
+                font-weight: 600;
+                font-size: 13.5px;
+            }
+            .upload-slot .slot-rule {
+                font-size: 11.5px;
+                color: var(--muted);
+                font-family: var(--font-mono);
+            }
+            .upload-slot.filled {
+                border-style: solid;
+                border-color: var(--teal);
+            }
+            .upload-slot.error {
+                border-style: solid;
+                border-color: var(--red);
+            }
+            .file-chip {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                border: 1px solid var(--line);
+                border-radius: 20px;
+                padding: 4px 10px 4px 12px;
+                font-size: 12.5px;
+                margin: 3px 6px 0 0;
+                background: var(--paper);
+            }
+            .file-chip button {
+                background: none;
+                border: none;
+                cursor: pointer;
+                color: var(--muted);
+                font-size: 14px;
+                line-height: 1;
+                padding: 0;
+            }
+            .file-chip button:hover {
+                color: var(--red);
+            }
 
-.progress-item{display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid var(--line); font-size:13px;}
-.progress-item:last-child{border-bottom:none;}
-.progress-item .icon{width:16px; text-align:center; flex-shrink:0;}
-.progress-item.done .icon{color:var(--teal);}
-.progress-item.error .icon{color:var(--red);}
-.progress-item.pending .icon{color:var(--muted);}
+            .progress-item {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 7px 0;
+                border-bottom: 1px solid var(--line);
+                font-size: 13px;
+            }
+            .progress-item:last-child {
+                border-bottom: none;
+            }
+            .progress-item .icon {
+                width: 16px;
+                text-align: center;
+                flex-shrink: 0;
+            }
+            .progress-item.done .icon {
+                color: var(--teal);
+            }
+            .progress-item.error .icon {
+                color: var(--red);
+            }
+            .progress-item.pending .icon {
+                color: var(--muted);
+            }
 
-.spinner{display:inline-block; width:14px; height:14px; border:2px solid var(--rail); border-top-color:var(--teal); border-radius:50%; animation:spin .7s linear infinite;}
-@keyframes spin{to{transform:rotate(360deg);}}
+            .spinner {
+                display: inline-block;
+                width: 14px;
+                height: 14px;
+                border: 2px solid var(--rail);
+                border-top-color: var(--teal);
+                border-radius: 50%;
+                animation: spin 0.7s linear infinite;
+            }
+            @keyframes spin {
+                to {
+                    transform: rotate(360deg);
+                }
+            }
 
-.countdown{font-family:var(--font-mono); font-size:13px; color:var(--muted);}
-.countdown.urgent{color:var(--red); font-weight:600;}
+            .countdown {
+                font-family: var(--font-mono);
+                font-size: 13px;
+                color: var(--muted);
+            }
+            .countdown.urgent {
+                color: var(--red);
+                font-weight: 600;
+            }
 
-footer.note{color:var(--muted); font-size:12px; margin-top:26px;}
-.center-msg{text-align:center; padding:40px 20px;}
-.center-msg .big-icon{font-size:40px; margin-bottom:12px;}
-</style>
-</head>
-<body>
+            footer.note {
+                color: var(--muted);
+                font-size: 12px;
+                margin-top: 26px;
+            }
+            .center-msg {
+                text-align: center;
+                padding: 40px 20px;
+            }
+            .center-msg .big-icon {
+                font-size: 40px;
+                margin-bottom: 12px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="topbar">
+            <span class="mark"></span>
+            <div>
+                <h1>LARI SP - Enviar trabalho</h1>
+                <div class="sub" id="topbarSub">carregando...</div>
+            </div>
+            <div class="spacer"></div>
+            <div class="relogio" id="relogioTopbar"></div>
+            <div class="userchip" id="userChip" style="display: none"></div>
+            <div id="marcadorVersao" class="versaoMarcador"></div>
+        </div>
 
-<div class="topbar">
-  <span class="mark"></span>
-  <div>
-    <h1>LARI SP - Enviar trabalho</h1>
-    <div class="sub" id="topbarSub">carregando...</div>
-  </div>
-  <div class="spacer"></div>
-  <div class="relogio" id="relogioTopbar"></div>
-  <div class="userchip" id="userChip" style="display:none;"></div>
-  <div id="marcadorVersao" class="versaoMarcador"></div>
+        <div class="wrap" id="root"></div>
 
-</div>
-
-<div class="wrap" id="root"></div>
-
-<script>
-/* ==========================================================================
+        <script>
+            /* ==========================================================================
    BOOTSTRAP — mesmo padrão de duas camadas usado pelo Aplicacao.html:
    SERVIDOR_URL é estável (quase nunca muda); BACKEND_URL é buscado nele em
    runtime, porque a URL do web app do Code.gs muda a cada novo deploy.
    ========================================================================== */
-const SERVIDOR_URL = "https://script.google.com/macros/s/AKfycbxw3n6nD31nESLeT6AKkh4_flFb5qc5YGSdWoioqqxcv7SKidBurDHRIyVVZYomV8OP/exec";
-const GOOGLE_CLIENT_ID = "534571821691-7gvp1ubpltfg86fo6ouetf5ci209ah4h.apps.googleusercontent.com";
-let BACKEND_URL = "";
+            const SERVIDOR_URL =
+                "https://script.google.com/macros/s/AKfycbxw3n6nD31nESLeT6AKkh4_flFb5qc5YGSdWoioqqxcv7SKidBurDHRIyVVZYomV8OP/exec";
+            const GOOGLE_CLIENT_ID =
+                "534571821691-7gvp1ubpltfg86fo6ouetf5ci209ah4h.apps.googleusercontent.com";
+            let BACKEND_URL = "";
 
-/* ==========================================================================
+            /* ==========================================================================
    MARCADOR DE VERSÃO — data/hora (America/Fortaleza) da última alteração
    deste arquivo, exibida discretamente no topbar junto com a data/hora da
    última alteração do backend (Code.gs), buscada em tempo real.
@@ -224,18 +574,19 @@ let BACKEND_URL = "";
    horário de Fortaleza) toda vez que este arquivo for editado, ANTES de
    entregar a versão nova. Não precisa tocar em mais nada além desta linha.
    ========================================================================== */
-const ULTIMA_ATUALIZACAO_FRONTEND = "30/08/2026 17:30";
+            const ULTIMA_ATUALIZACAO_FRONTEND = "03/09/2026 10:22";
 
-async function carregarMarcadorVersao(){
-  const el = document.getElementById('marcadorVersao');
-  if (!el) return;
-  el.innerHTML = `<div><b>···</b></div><div>${ULTIMA_ATUALIZACAO_FRONTEND}</div>`;
-  const r = await chamarBackend('getStatusBackend', {});
-  const backend = (r.ok && r.atualizado_backend) ? r.atualizado_backend : '?';
-  el.innerHTML = `<div><b>${backend}</b></div><div>${ULTIMA_ATUALIZACAO_FRONTEND}</div>`;
-}
+            async function carregarMarcadorVersao() {
+                const el = document.getElementById("marcadorVersao");
+                if (!el) return;
+                el.innerHTML = `<div><b>···</b></div><div>${ULTIMA_ATUALIZACAO_FRONTEND}</div>`;
+                const r = await chamarBackend("getStatusBackend", {});
+                const backend =
+                    r.ok && r.atualizado_backend ? r.atualizado_backend : "?";
+                el.innerHTML = `<div><b>${backend}</b></div><div>${ULTIMA_ATUALIZACAO_FRONTEND}</div>`;
+            }
 
-/* ==========================================================================
+            /* ==========================================================================
    RELÓGIO DO CABEÇALHO — data/hora atual em tempo real + contagem
    regressiva até o prazo do trabalho carregado (quando houver um), exibida
    entre parênteses. Atualiza a cada segundo.
@@ -244,275 +595,395 @@ async function carregarMarcadorVersao(){
    nunca no fuso do navegador do aluno — pra bater exatamente com a hora que
    o servidor usa pra decidir se o prazo já venceu.
    ========================================================================== */
-function agoraFortaleza_(){
-  // Desloca o instante UTC em -3h e depois lê pelos getters *UTC*, que não
-  // aplicam o fuso do navegador de novo — dá o relógio de parede de
-  // Fortaleza independente de onde o aluno estiver.
-  return new Date(Date.now() - 3 * 3600 * 1000);
-}
-function formatarDataHoraFortaleza_(d){
-  const dd = String(d.getUTCDate()).padStart(2, '0');
-  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const yyyy = d.getUTCFullYear();
-  const hh = String(d.getUTCHours()).padStart(2, '0');
-  const mi = String(d.getUTCMinutes()).padStart(2, '0');
-  return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
-}
-function calcularPrazoInstante_(prazoData, prazoHora){
-  if (!prazoData) return null;
-  const hora = prazoHora || '23:59';
-  // ISO com offset explícito -03:00 — o navegador resolve pro instante
-  // absoluto certo independente do fuso local dele.
-  const d = new Date(`${prazoData}T${hora}:00-03:00`);
-  return isNaN(d.getTime()) ? null : d;
-}
-function formatarContagemRegressiva_(diffMs){
-  if (diffMs <= 0) return { texto: 'prazo encerrado', nivel: 'encerrado', icone: '⛔' };
-  const horas = diffMs / 3600000;
-  if (horas >= 24){
-    const dias = Math.floor(horas / 24);
-    return { texto: `${dias}d`, nivel: 'normal', icone: '⏳' };
-  }
-  if (horas >= 2){
-    const h = Math.floor(horas);
-    const m = Math.floor((diffMs % 3600000) / 60000);
-    return { texto: `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`, nivel: 'urgente-24h', icone: '⏳' };
-  }
-  const h = Math.floor(horas);
-  const m = Math.floor((diffMs % 3600000) / 60000);
-  return { texto: `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`, nivel: 'urgente-2h', icone: '⏰' };
-}
-function atualizarRelogioTopbar(){
-  const el = document.getElementById('relogioTopbar');
-  if (!el) return;
-  let html = formatarDataHoraFortaleza_(agoraFortaleza_());
+            function agoraFortaleza_() {
+                // Desloca o instante UTC em -3h e depois lê pelos getters *UTC*, que não
+                // aplicam o fuso do navegador de novo — dá o relógio de parede de
+                // Fortaleza independente de onde o aluno estiver.
+                return new Date(Date.now() - 3 * 3600 * 1000);
+            }
+            function formatarDataHoraFortaleza_(d) {
+                const dd = String(d.getUTCDate()).padStart(2, "0");
+                const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+                const yyyy = d.getUTCFullYear();
+                const hh = String(d.getUTCHours()).padStart(2, "0");
+                const mi = String(d.getUTCMinutes()).padStart(2, "0");
+                return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
+            }
+            function calcularPrazoInstante_(prazoData, prazoHora) {
+                if (!prazoData) return null;
+                const hora = prazoHora || "23:59";
+                // ISO com offset explícito -03:00 — o navegador resolve pro instante
+                // absoluto certo independente do fuso local dele.
+                const d = new Date(`${prazoData}T${hora}:00-03:00`);
+                return isNaN(d.getTime()) ? null : d;
+            }
+            function formatarContagemRegressiva_(diffMs) {
+                if (diffMs <= 0)
+                    return {
+                        texto: "prazo encerrado",
+                        nivel: "encerrado",
+                        icone: "⛔",
+                    };
+                const horas = diffMs / 3600000;
+                if (horas >= 24) {
+                    const dias = Math.floor(horas / 24);
+                    return { texto: `${dias}d`, nivel: "normal", icone: "⏳" };
+                }
+                if (horas >= 2) {
+                    const h = Math.floor(horas);
+                    const m = Math.floor((diffMs % 3600000) / 60000);
+                    return {
+                        texto: `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
+                        nivel: "urgente-24h",
+                        icone: "⏳",
+                    };
+                }
+                const h = Math.floor(horas);
+                const m = Math.floor((diffMs % 3600000) / 60000);
+                return {
+                    texto: `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
+                    nivel: "urgente-2h",
+                    icone: "⏰",
+                };
+            }
+            function atualizarRelogioTopbar() {
+                const el = document.getElementById("relogioTopbar");
+                if (!el) return;
+                let html = formatarDataHoraFortaleza_(agoraFortaleza_());
 
-  const t = state.trabalho;
-  if (t && t.prazo_data){
-    const prazoInstante = calcularPrazoInstante_(t.prazo_data, t.prazo_hora);
-    if (prazoInstante){
-      const { texto, nivel, icone } = formatarContagemRegressiva_(prazoInstante.getTime() - Date.now());
-      html += ` <span class="contagem ${nivel}">(${icone} ${texto})</span>`;
-    }
-  }
-  el.textContent = '';
-  el.innerHTML = html;
-}
-function iniciarRelogioTopbar(){
-  atualizarRelogioTopbar();
-  setInterval(atualizarRelogioTopbar, 1000);
-}
+                const t = state.trabalho;
+                if (t && t.prazo_data) {
+                    const prazoInstante = calcularPrazoInstante_(
+                        t.prazo_data,
+                        t.prazo_hora,
+                    );
+                    if (prazoInstante) {
+                        const { texto, nivel, icone } =
+                            formatarContagemRegressiva_(
+                                prazoInstante.getTime() - Date.now(),
+                            );
+                        html += ` <span class="contagem ${nivel}">(${icone} ${texto})</span>`;
+                    }
+                }
+                el.textContent = "";
+                el.innerHTML = html;
+            }
+            function iniciarRelogioTopbar() {
+                atualizarRelogioTopbar();
+                setInterval(atualizarRelogioTopbar, 1000);
+            }
 
-// Necessário pro parseReportPDF (arquivo compartilhado) funcionar em thread
-// separada — sem isso, pdf.js roda no fallback de thread principal (mais
-// lento, com aviso no console). Mesma versão carregada no <head>.
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            // Necessário pro parseReportPDF (arquivo compartilhado) funcionar em thread
+            // separada — sem isso, pdf.js roda no fallback de thread principal (mais
+            // lento, com aviso no console). Mesma versão carregada no <head>.
+            pdfjsLib.GlobalWorkerOptions.workerSrc =
+                "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-async function carregarConfig(){
-  try{
-    const r = await fetch(`${SERVIDOR_URL}?ts=${Date.now()}`, { cache: "no-store" });
-    const cfg = await r.json();
-    BACKEND_URL = cfg.backend_url || "";
-  }catch(e){
-    BACKEND_URL = "";
-  }
-}
+            async function carregarConfig() {
+                try {
+                    const r = await fetch(`${SERVIDOR_URL}?ts=${Date.now()}`, {
+                        cache: "no-store",
+                    });
+                    const cfg = await r.json();
+                    BACKEND_URL = cfg.backend_url || "";
+                } catch (e) {
+                    BACKEND_URL = "";
+                }
+            }
 
-// GET com querystring (nunca dispara preflight de CORS) pra ações leves;
-// POST com corpo em texto puro (sem header Content-Type customizado — o
-// fetch usa text/plain por padrão, o que também não dispara preflight) pra
-// payloads grandes (dossiê extraído, base64 de arquivo). O doPost do
-// Code.gs já faz JSON.parse do corpo e mescla em e.parameter de qualquer
-// forma, então os dois caminhos chegam iguais no servidor.
-async function chamarBackend(action, params, usarPost){
-  if (!BACKEND_URL) await carregarConfig();
-  if (!BACKEND_URL) return { ok:false, erro:"BACKEND_INDISPONIVEL" };
+            // GET com querystring (nunca dispara preflight de CORS) pra ações leves;
+            // POST com corpo em texto puro (sem header Content-Type customizado — o
+            // fetch usa text/plain por padrão, o que também não dispara preflight) pra
+            // payloads grandes (dossiê extraído, base64 de arquivo). O doPost do
+            // Code.gs já faz JSON.parse do corpo e mescla em e.parameter de qualquer
+            // forma, então os dois caminhos chegam iguais no servidor.
+            async function chamarBackend(action, params, usarPost) {
+                if (!BACKEND_URL) await carregarConfig();
+                if (!BACKEND_URL)
+                    return { ok: false, erro: "BACKEND_INDISPONIVEL" };
 
-  const corpo = { action, ...params };
-  let res;
-  try{
-    if (usarPost){
-      res = await fetch(BACKEND_URL, { method:"POST", body: JSON.stringify(corpo), cache:"no-store" });
-    } else {
-      const qp = new URLSearchParams();
-      Object.entries(corpo).forEach(([k,v]) => {
-        if (v === undefined || v === null) return;
-        qp.set(k, typeof v === "object" ? JSON.stringify(v) : String(v));
-      });
-      res = await fetch(`${BACKEND_URL}?${qp}`, { method:"GET", cache:"no-store" });
-    }
-  }catch(e){
-    return { ok:false, erro:"FALHA_DE_REDE", detalhe: e.message };
-  }
+                const corpo = { action, ...params };
+                let res;
+                try {
+                    if (usarPost) {
+                        res = await fetch(BACKEND_URL, {
+                            method: "POST",
+                            body: JSON.stringify(corpo),
+                            cache: "no-store",
+                        });
+                    } else {
+                        const qp = new URLSearchParams();
+                        Object.entries(corpo).forEach(([k, v]) => {
+                            if (v === undefined || v === null) return;
+                            qp.set(
+                                k,
+                                typeof v === "object"
+                                    ? JSON.stringify(v)
+                                    : String(v),
+                            );
+                        });
+                        res = await fetch(`${BACKEND_URL}?${qp}`, {
+                            method: "GET",
+                            cache: "no-store",
+                        });
+                    }
+                } catch (e) {
+                    return {
+                        ok: false,
+                        erro: "FALHA_DE_REDE",
+                        detalhe: e.message,
+                    };
+                }
 
-  const texto = await res.text();
-  try{ return JSON.parse(texto); }
-  catch(e){ return { ok:false, erro:"RESPOSTA_INVALIDA_DO_SERVIDOR", detalhe: texto.slice(0,200) }; }
-}
+                const texto = await res.text();
+                try {
+                    return JSON.parse(texto);
+                } catch (e) {
+                    return {
+                        ok: false,
+                        erro: "RESPOSTA_INVALIDA_DO_SERVIDOR",
+                        detalhe: texto.slice(0, 200),
+                    };
+                }
+            }
 
+            function escapeHtml(s) {
+                return String(s ?? "").replace(
+                    /[&<>"']/g,
+                    (c) =>
+                        ({
+                            "&": "&amp;",
+                            "<": "&lt;",
+                            ">": "&gt;",
+                            '"': "&quot;",
+                            "'": "&#39;",
+                        })[c],
+                );
+            }
+            function h(html) {
+                const t = document.createElement("template");
+                t.innerHTML = html.trim();
+                return t.content.firstElementChild;
+            }
+            function $(sel, root) {
+                return (root || document).querySelector(sel);
+            }
 
-
-function escapeHtml(s){
-  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-function h(html){
-  const t = document.createElement('template');
-  t.innerHTML = html.trim();
-  return t.content.firstElementChild;
-}
-function $(sel, root){ return (root||document).querySelector(sel); }
-
-/* ==========================================================================
+            /* ==========================================================================
    ESTADO GLOBAL DA APLICAÇÃO
    ========================================================================== */
-const state = {
-  tela: 'login',           // login | precisa_matricula | trabalho | verificando | relatorio | confirmando | confirmado | enviado_parcial | erro
-  idToken: null,
-  perfilGoogle: null,      // {name, email, picture}
-  matriculaDigitada: '',
-  idTrabalho: '',
-  trabalho: null,          // resultado de getTrabalho
-  arquivosPorTipo: {},     // { [tipo]: File[] }
-  arquivosExistentesPorTipo: {}, // { [tipo]: [{filename, tamanho}] } — já na pasta (reenvio)
-  tiposReaproveitados: {}, // { [tipo]: true } — aluno optou por manter o(s) arquivo(s) já enviado(s) em vez de reanexar
-  relatorioPreview: null,  // {relatorio, numero_tentativa_previsto, tentativas_limite, seria_ultima_tentativa} — de verificarEnvioTrabalho (não grava nada)
-  envio: null,             // {token, numero_tentativa, eh_ultima_tentativa} — só existe depois de clicar em Enviar (isso sim conta tentativa)
-  erroContexto: null,      // 'envio' — pra saber se dá pra "tentar de novo" reusando o token de envio
-  progressoVerificacao: '', // mensagem de status exibida durante a tela "verificando"
-  manifesto: null,
-  progressoUpload: [],     // [{filename, tipo, status:'pendente'|'enviando'|'ok'|'erro'}]
-  erroGeral: null,
-};
+            const state = {
+                tela: "login", // login | precisa_matricula | trabalho | verificando | relatorio | confirmando | confirmado | enviado_parcial | erro
+                idToken: null,
+                perfilGoogle: null, // {name, email, picture}
+                pseudonimo: "", // só fica conhecido depois que getTrabalho resolve o candidato
+                matriculaDigitada: "",
+                idTrabalho: "",
+                trabalho: null, // resultado de getTrabalho
+                arquivosPorTipo: {}, // { [tipo]: File[] }
+                arquivosExistentesPorTipo: {}, // { [tipo]: [{filename, tamanho}] } — já na pasta (reenvio)
+                tiposReaproveitados: {}, // { [tipo]: true } — aluno optou por manter o(s) arquivo(s) já enviado(s) em vez de reanexar
+                relatorioPreview: null, // {relatorio, numero_tentativa_previsto, tentativas_limite, seria_ultima_tentativa} — de verificarEnvioTrabalho (não grava nada)
+                envio: null, // {token, numero_tentativa, eh_ultima_tentativa} — só existe depois de clicar em Enviar (isso sim conta tentativa)
+                erroContexto: null, // 'envio' — pra saber se dá pra "tentar de novo" reusando o token de envio
+                progressoVerificacao: "", // mensagem de status exibida durante a tela "verificando"
+                manifesto: null,
+                progressoUpload: [], // [{filename, tipo, status:'pendente'|'enviando'|'ok'|'erro'}]
+                erroGeral: null,
+            };
 
-function render(){
-  const root = $('#root');
-  root.innerHTML = '';
-  const map = {
-    login: renderLogin,
-    precisa_matricula: renderPrecisaMatricula,
-    carregando: () => renderCentro('⏳', 'Carregando...'),
-    trabalho: renderTrabalho,
-    verificando: () => renderCentro('🔎', state.progressoVerificacao || 'Verificando seus arquivos...', true),
-    relatorio: renderRelatorio,
-    confirmando: renderConfirmando,
-    confirmado: renderConfirmado,
-    enviado_parcial: renderEnviadoParcial,
-    erro: renderErro,
-  };
-  const fn = map[state.tela] || renderErro;
-  root.appendChild(fn());
-}
+            function render() {
+                const root = $("#root");
+                root.innerHTML = "";
+                const map = {
+                    login: renderLogin,
+                    precisa_matricula: renderPrecisaMatricula,
+                    carregando: () => renderCentro("⏳", "Carregando..."),
+                    trabalho: renderTrabalho,
+                    verificando: () =>
+                        renderCentro(
+                            "🔎",
+                            state.progressoVerificacao ||
+                                "Verificando seus arquivos...",
+                            true,
+                        ),
+                    relatorio: renderRelatorio,
+                    confirmando: renderConfirmando,
+                    confirmado: renderConfirmado,
+                    enviado_parcial: renderEnviadoParcial,
+                    erro: renderErro,
+                };
+                const fn = map[state.tela] || renderErro;
+                root.appendChild(fn());
+            }
 
-function renderCentro(icone, texto, comSpinner){
-  return h(`
+            function renderCentro(icone, texto, comSpinner) {
+                return h(`
     <div class="panel center-msg">
       <div class="big-icon">${icone}</div>
       <div>${escapeHtml(texto)}</div>
-      ${comSpinner ? '<div style="margin-top:14px;"><span class="spinner"></span></div>' : ''}
+      ${comSpinner ? '<div style="margin-top:14px;"><span class="spinner"></span></div>' : ""}
     </div>
   `);
-}
+            }
 
-function renderErro(){
-  const msg = MENSAGENS_ERRO[state.erroGeral?.erro] || state.erroGeral?.erro || 'Algo deu errado.';
-  const detalhe = state.erroGeral?.detalhe;
-  // Contingência: qualquer erro que não seja um estado terminal (prazo
-  // expirado, já confirmado, etc.) oferece "tentar de novo" — reexecuta o
-  // envio (upload+finalizar) reusando o mesmo token, em vez de fazer o
-  // aluno recomeçar do zero e perder a tentativa já iniciada.
-  const ERROS_TERMINAIS = new Set([
-    'ENTREGA_JA_CONFIRMADA', 'TRABALHO_INATIVO', 'TRABALHO_NAO_ENCONTRADO',
-    'ALUNO_NAO_MATRICULADO_NESTA_DISCIPLINA', 'FORA_DO_PRAZO_E_TOLERANCIA',
-    'LIMITE_TENTATIVAS_ATINGIDO', 'MATRICULA_NAO_ENCONTRADA',
-  ]);
-  const podeTentarNovamente = (state.erroContexto === 'envio' || state.erroContexto === 'verificacao') && !ERROS_TERMINAIS.has(state.erroGeral?.erro);
-  return h(`
+            function renderErro() {
+                const msg =
+                    MENSAGENS_ERRO[state.erroGeral?.erro] ||
+                    state.erroGeral?.erro ||
+                    "Algo deu errado.";
+                const detalhe = state.erroGeral?.detalhe;
+                // Contingência: qualquer erro que não seja um estado terminal (prazo
+                // expirado, já confirmado, etc.) oferece "tentar de novo" — reexecuta o
+                // envio (upload+finalizar) reusando o mesmo token, em vez de fazer o
+                // aluno recomeçar do zero e perder a tentativa já iniciada.
+                const ERROS_TERMINAIS = new Set([
+                    "ENTREGA_JA_CONFIRMADA",
+                    "TRABALHO_INATIVO",
+                    "TRABALHO_NAO_ENCONTRADO",
+                    "ALUNO_NAO_MATRICULADO_NESTA_DISCIPLINA",
+                    "FORA_DO_PRAZO_E_TOLERANCIA",
+                    "LIMITE_TENTATIVAS_ATINGIDO",
+                    "MATRICULA_NAO_ENCONTRADA",
+                ]);
+                const podeTentarNovamente =
+                    (state.erroContexto === "envio" ||
+                        state.erroContexto === "verificacao") &&
+                    !ERROS_TERMINAIS.has(state.erroGeral?.erro);
+                return h(`
     <div class="panel center-msg">
       <div class="big-icon">⚠️</div>
       <h2 style="margin-bottom:10px;">Não foi possível continuar</h2>
       <div class="banner err" style="text-align:left;">${escapeHtml(msg)}</div>
-      ${detalhe ? `<div class="banner err" style="text-align:left; margin-top:8px; font-family:var(--font-mono,monospace); font-size:12px; opacity:0.85;">${escapeHtml(detalhe)}</div>` : ''}
+      ${detalhe ? `<div class="banner err" style="text-align:left; margin-top:8px; font-family:var(--font-mono,monospace); font-size:12px; opacity:0.85;">${escapeHtml(detalhe)}</div>` : ""}
       <div class="btn-row" style="justify-content:center; margin-top:16px;">
-        ${podeTentarNovamente ? '<button class="btn teal" id="btnTentarNovamenteGeral">↻ Tentar novamente</button>' : ''}
+        ${podeTentarNovamente ? '<button class="btn teal" id="btnTentarNovamenteGeral">↻ Tentar novamente</button>' : ""}
         <button class="btn secondary" id="btnVoltarInicio">← Voltar ao início</button>
       </div>
     </div>
   `);
-}
+            }
 
-const MENSAGENS_ERRO = {
-  PRECISA_MATRICULA: 'Não reconhecemos seu e-mail automaticamente. Informe sua matrícula.',
-  MATRICULA_NAO_ENCONTRADA: 'Não encontramos essa matrícula no sistema. Confira o número ou fale com o professor.',
-  TRABALHO_NAO_ENCONTRADO: 'Esse código de trabalho não existe. Confira o código no Classroom.',
-  TRABALHO_INATIVO: 'Este trabalho não está mais aceitando envios no momento.',
-  ALUNO_NAO_MATRICULADO_NESTA_DISCIPLINA: 'Sua matrícula não está vinculada a esta disciplina.',
-  ENTREGA_JA_CONFIRMADA: 'Sua entrega para este trabalho já foi confirmada.',
-  ENVIO_JA_FINALIZADO: 'Este envio já tinha sido concluído — atualize a página.',
-  FORA_DO_PRAZO_E_TOLERANCIA: 'O prazo deste trabalho (e o período de tolerância) já passou. Fale com o professor se precisar de uma exceção.',
-  LIMITE_TENTATIVAS_ATINGIDO: 'Você já usou todas as suas entregas disponíveis para este trabalho.',
-  BACKEND_INDISPONIVEL: 'Não foi possível conectar ao servidor. Verifique sua internet e tente de novo.',
-  FALHA_DE_REDE: 'Falha de conexão. Verifique sua internet e tente de novo.',
-};
+            const MENSAGENS_ERRO = {
+                PRECISA_MATRICULA:
+                    "Não reconhecemos seu e-mail automaticamente. Informe sua matrícula.",
+                MATRICULA_NAO_ENCONTRADA:
+                    "Não encontramos essa matrícula no sistema. Confira o número ou fale com o professor.",
+                TRABALHO_NAO_ENCONTRADO:
+                    "Esse código de trabalho não existe. Confira o código no Classroom.",
+                TRABALHO_INATIVO:
+                    "Este trabalho não está mais aceitando envios no momento.",
+                ALUNO_NAO_MATRICULADO_NESTA_DISCIPLINA:
+                    "Sua matrícula não está vinculada a esta disciplina.",
+                ENTREGA_JA_CONFIRMADA:
+                    "Sua entrega para este trabalho já foi confirmada.",
+                ENVIO_JA_FINALIZADO:
+                    "Este envio já tinha sido concluído — atualize a página.",
+                FORA_DO_PRAZO_E_TOLERANCIA:
+                    "O prazo deste trabalho (e o período de tolerância) já passou. Fale com o professor se precisar de uma exceção.",
+                LIMITE_TENTATIVAS_ATINGIDO:
+                    "Você já usou todas as suas entregas disponíveis para este trabalho.",
+                BACKEND_INDISPONIVEL:
+                    "Não foi possível conectar ao servidor. Verifique sua internet e tente de novo.",
+                FALHA_DE_REDE:
+                    "Falha de conexão. Verifique sua internet e tente de novo.",
+            };
 
-document.addEventListener('click', (e) => {
-  if (e.target && e.target.id === 'btnVoltarInicio'){
-    state.tela = 'login';
-    state.erroGeral = null;
-    render();
-  }
-  if (e.target && e.target.id === 'btnTentarNovamenteGeral'){
-    state.erroGeral = null;
-    if (state.erroContexto === 'envio') enviarArquivos();
-    else verificarArquivos();
-  }
-});
+            document.addEventListener("click", (e) => {
+                if (e.target && e.target.id === "btnVoltarInicio") {
+                    state.tela = "login";
+                    state.erroGeral = null;
+                    render();
+                }
+                if (e.target && e.target.id === "btnTentarNovamenteGeral") {
+                    state.erroGeral = null;
+                    if (state.erroContexto === "envio") enviarArquivos();
+                    else verificarArquivos();
+                }
+            });
 
-/* ==========================================================================
+            /* ==========================================================================
    LOGIN (Google Sign-In)
    ========================================================================== */
-function decodeJwtPayload(token){
-  try{
-    const base64 = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
-    const json = decodeURIComponent(atob(base64).split('').map(c => '%' + c.charCodeAt(0).toString(16).padStart(2,'0')).join(''));
-    return JSON.parse(json);
-  }catch(e){ return {}; }
-}
+            function decodeJwtPayload(token) {
+                try {
+                    const base64 = token
+                        .split(".")[1]
+                        .replace(/-/g, "+")
+                        .replace(/_/g, "/");
+                    const json = decodeURIComponent(
+                        atob(base64)
+                            .split("")
+                            .map(
+                                (c) =>
+                                    "%" +
+                                    c
+                                        .charCodeAt(0)
+                                        .toString(16)
+                                        .padStart(2, "0"),
+                            )
+                            .join(""),
+                    );
+                    return JSON.parse(json);
+                } catch (e) {
+                    return {};
+                }
+            }
 
-function atualizarUserChip(){
-  const chip = $('#userChip');
-  if (!chip || !state.perfilGoogle) return;
-  chip.style.display = 'flex';
-  chip.innerHTML = `${state.perfilGoogle.picture ? `<img src="${state.perfilGoogle.picture}">` : ''}<span>${escapeHtml(state.perfilGoogle.name || state.perfilGoogle.email || '')}</span>`;
-}
+            function atualizarUserChip() {
+                const chip = $("#userChip");
+                if (!chip || !state.perfilGoogle) return;
+                chip.style.display = "flex";
+                const pseudo = state.pseudonimo
+                    ? `<span class="pseudo" title="Pseudônimo usado para anonimizar notas e exibições públicas">${escapeHtml(state.pseudonimo)}</span>`
+                    : "";
+                chip.innerHTML = `${state.perfilGoogle.picture ? `<img src="${state.perfilGoogle.picture}">` : ""}<span>${escapeHtml(state.perfilGoogle.name || state.perfilGoogle.email || "")}</span>${pseudo}`;
+            }
 
-function initGoogleSignIn(){
-  if (!window.google || !google.accounts || !google.accounts.id){
-    setTimeout(initGoogleSignIn, 200);
-    return;
-  }
-  google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: onGoogleCredential });
-  const slot = $('#googleBtnSlot');
-  if (slot){
-    google.accounts.id.renderButton(slot, { theme:'filled_black', size:'large', text:'signin_with', shape:'pill' });
-  }
-}
+            function initGoogleSignIn() {
+                if (!window.google || !google.accounts || !google.accounts.id) {
+                    setTimeout(initGoogleSignIn, 200);
+                    return;
+                }
+                google.accounts.id.initialize({
+                    client_id: GOOGLE_CLIENT_ID,
+                    callback: onGoogleCredential,
+                });
+                const slot = $("#googleBtnSlot");
+                if (slot) {
+                    google.accounts.id.renderButton(slot, {
+                        theme: "filled_black",
+                        size: "large",
+                        text: "signin_with",
+                        shape: "pill",
+                    });
+                }
+            }
 
-async function onGoogleCredential(resp){
-  state.idToken = resp.credential;
-  const payload = decodeJwtPayload(resp.credential);
-  state.perfilGoogle = { name: payload.name, email: payload.email, picture: payload.picture };
-  atualizarUserChip();
+            async function onGoogleCredential(resp) {
+                state.idToken = resp.credential;
+                const payload = decodeJwtPayload(resp.credential);
+                state.perfilGoogle = {
+                    name: payload.name,
+                    email: payload.email,
+                    picture: payload.picture,
+                };
+                atualizarUserChip();
 
-  if (!state.idTrabalho){
-    const statusEl = $('#loginStatus');
-    if (statusEl){ statusEl.textContent = 'Informe o código do trabalho antes de continuar.'; statusEl.className = 'status-line err'; }
-    return;
-  }
-  await carregarTrabalho();
-}
+                if (!state.idTrabalho) {
+                    const statusEl = $("#loginStatus");
+                    if (statusEl) {
+                        statusEl.textContent =
+                            "Informe o código do trabalho antes de continuar.";
+                        statusEl.className = "status-line err";
+                    }
+                    return;
+                }
+                await carregarTrabalho();
+            }
 
-function renderLogin(){
-  const panel = h(`
+            function renderLogin() {
+                const panel = h(`
     <div class="panel">
       <h2>Enviar trabalho</h2>
       <div class="desc">Entre com sua conta Google institucional e informe o código do trabalho (você encontra esse código no Classroom).</div>
@@ -527,15 +998,17 @@ function renderLogin(){
       <div class="status-line" id="loginStatus"></div>
     </div>
   `);
-  panel.querySelector('#idTrabalhoInput').addEventListener('input', (e) => {
-    state.idTrabalho = e.target.value.trim().toUpperCase();
-  });
-  setTimeout(initGoogleSignIn, 0);
-  return panel;
-}
+                panel
+                    .querySelector("#idTrabalhoInput")
+                    .addEventListener("input", (e) => {
+                        state.idTrabalho = e.target.value.trim().toUpperCase();
+                    });
+                setTimeout(initGoogleSignIn, 0);
+                return panel;
+            }
 
-function renderPrecisaMatricula(){
-  const panel = h(`
+            function renderPrecisaMatricula() {
+                const panel = h(`
     <div class="panel">
       <h2>Confirme sua matrícula</h2>
       <div class="desc">Não conseguimos identificar automaticamente sua matrícula pelo seu e-mail. Digite sua matrícula pra continuar.</div>
@@ -549,65 +1022,91 @@ function renderPrecisaMatricula(){
       </div>
     </div>
   `);
-  panel.querySelector('#btnConfirmarMatricula').addEventListener('click', async () => {
-    const v = panel.querySelector('#matriculaInput').value.trim();
-    if (!v) return;
-    state.matriculaDigitada = v;
-    await carregarTrabalho();
-  });
-  return panel;
-}
+                panel
+                    .querySelector("#btnConfirmarMatricula")
+                    .addEventListener("click", async () => {
+                        const v = panel
+                            .querySelector("#matriculaInput")
+                            .value.trim();
+                        if (!v) return;
+                        state.matriculaDigitada = v;
+                        await carregarTrabalho();
+                    });
+                return panel;
+            }
 
-async function carregarTrabalho(){
-  state.tela = 'carregando';
-  render();
-  const r = await chamarBackend('getTrabalho', {
-    id_trabalho: state.idTrabalho, id_token: state.idToken,
-    matricula_selecionada: state.matriculaDigitada || undefined,
-  });
-  if (!r.ok){
-    if (r.erro === 'PRECISA_MATRICULA'){ state.tela = 'precisa_matricula'; render(); return; }
-    state.erroGeral = r; state.tela = 'erro'; render(); return;
-  }
-  state.trabalho = r;
-  state.arquivosExistentesPorTipo = r.arquivos_existentes_por_tipo || {};
-  // Por padrão, se já existe arquivo enviado antes pra um tipo, o aluno
-  // começa "reaproveitando" ele — pode trocar por "Substituir arquivos" no
-  // próprio slot. Isso é o que permite pular a etapa de reenviar do zero.
-  state.tiposReaproveitados = {};
-  Object.keys(state.arquivosExistentesPorTipo).forEach((tipo) => { state.tiposReaproveitados[tipo] = true; });
+            async function carregarTrabalho() {
+                state.tela = "carregando";
+                render();
+                const r = await chamarBackend("getTrabalho", {
+                    id_trabalho: state.idTrabalho,
+                    id_token: state.idToken,
+                    matricula_selecionada: state.matriculaDigitada || undefined,
+                });
+                if (!r.ok) {
+                    if (r.erro === "PRECISA_MATRICULA") {
+                        state.tela = "precisa_matricula";
+                        render();
+                        return;
+                    }
+                    state.erroGeral = r;
+                    state.tela = "erro";
+                    render();
+                    return;
+                }
+                state.trabalho = r;
+                state.pseudonimo = r.pseudonimo || "";
+                atualizarUserChip();
+                state.arquivosExistentesPorTipo =
+                    r.arquivos_existentes_por_tipo || {};
+                // Por padrão, se já existe arquivo enviado antes pra um tipo, o aluno
+                // começa "reaproveitando" ele — pode trocar por "Substituir arquivos" no
+                // próprio slot. Isso é o que permite pular a etapa de reenviar do zero.
+                state.tiposReaproveitados = {};
+                Object.keys(state.arquivosExistentesPorTipo).forEach((tipo) => {
+                    state.tiposReaproveitados[tipo] = true;
+                });
 
-  state.tela = 'trabalho';
-  render();
-}
+                state.tela = "trabalho";
+                render();
+            }
 
-/* ==========================================================================
+            /* ==========================================================================
    TELA DO TRABALHO — enunciado, critérios, upload por tipo
    ========================================================================== */
-function renderTrabalho(){
-  const t = state.trabalho;
+            function renderTrabalho() {
+                const t = state.trabalho;
 
-  if (t.ja_confirmado){
-    return h(`
+                if (t.ja_confirmado) {
+                    return h(`
       <div class="panel center-msg">
         <div class="big-icon">✅</div>
         <h2>Entrega já confirmada</h2>
-        <div class="desc">Você confirmou sua entrega definitiva para <strong>${escapeHtml(t.titulo || state.idTrabalho)}</strong> em ${escapeHtml(t.confirmado_em || '')}. Não é possível enviar de novo. Se precisar reenviar por algum motivo, fale com o professor.</div>
+        <div class="desc">Você confirmou sua entrega definitiva para <strong>${escapeHtml(t.titulo || state.idTrabalho)}</strong> em ${escapeHtml(t.confirmado_em || "")}. Não é possível enviar de novo. Se precisar reenviar por algum motivo, fale com o professor.</div>
       </div>
     `);
-  }
+                }
 
-  const prazoTxt = t.prazo_data ? `${t.prazo_data.split('-').reverse().join('/')} às ${t.prazo_hora || '23:59'}` : 'sem prazo definido';
-  const tentativasRestantes = Math.max(0, t.tentativas_limite - t.tentativas_usadas);
+                const prazoTxt = t.prazo_data
+                    ? `${t.prazo_data.split("-").reverse().join("/")} às ${t.prazo_hora || "23:59"}`
+                    : "sem prazo definido";
+                const tentativasRestantes = Math.max(
+                    0,
+                    t.tentativas_limite - t.tentativas_usadas,
+                );
 
-  const panel = h(`
+                const panel = h(`
     <div>
-      ${t.modo_prazo === 'tolerancia' ? `
+      ${
+          t.modo_prazo === "tolerancia"
+              ? `
         <div class="banner warn">⏰ O prazo oficial já passou, mas você ainda está no período de tolerância. <strong>Se você enviar agora, já será sua entrega definitiva</strong> — não há nova chance depois dela.</div>
-      ` : ''}
+      `
+              : ""
+      }
       <div class="panel">
         <h2>${escapeHtml(t.titulo || state.idTrabalho)}</h2>
-        <div class="desc">Prazo: ${escapeHtml(prazoTxt)} · Entregas: ${t.tentativas_usadas}/${t.tentativas_limite} usadas (${tentativasRestantes} restante${tentativasRestantes===1?'':'s'})</div>
+        <div class="desc">Prazo: ${escapeHtml(prazoTxt)} · Entregas: ${t.tentativas_usadas}/${t.tentativas_limite} usadas (${tentativasRestantes} restante${tentativasRestantes === 1 ? "" : "s"})</div>
         <div class="desc" style="font-size:12px; font-style:italic; margin-top:2px;">"Verificar" é só uma conferência — pode repetir quantos ciclos quiser, sem custo. Só o botão "Enviar Arquivos" manda pro Drive e consome 1 das entregas acima.</div>
         <div class="field">
           <label>Enunciado</label>
@@ -631,214 +1130,286 @@ function renderTrabalho(){
     </div>
   `);
 
-  const critWrap = panel.querySelector('#critListTrabalho');
-  (t.criterios || []).forEach((c) => {
-    critWrap.appendChild(h(`
+                const critWrap = panel.querySelector("#critListTrabalho");
+                (t.criterios || []).forEach((c) => {
+                    critWrap.appendChild(
+                        h(`
       <div class="crit-row">
         <div class="top">
           <div><div class="cat">${escapeHtml(c.categoria)}</div><div class="crit-text">${escapeHtml(c.criterio)}</div></div>
           <div class="peso">peso ${c.peso}</div>
         </div>
       </div>
-    `));
-  });
+    `),
+                    );
+                });
 
-  const slotsWrap = panel.querySelector('#uploadSlots');
-  (t.regras_arquivos || []).forEach((regra) => slotsWrap.appendChild(renderUploadSlot(regra)));
+                const slotsWrap = panel.querySelector("#uploadSlots");
+                (t.regras_arquivos || []).forEach((regra) =>
+                    slotsWrap.appendChild(renderUploadSlot(regra)),
+                );
 
-  const btnVerificar = panel.querySelector('#btnVerificar');
-  if (btnVerificar) btnVerificar.addEventListener('click', verificarArquivos);
+                const btnVerificar = panel.querySelector("#btnVerificar");
+                if (btnVerificar)
+                    btnVerificar.addEventListener("click", verificarArquivos);
 
-  return panel;
-}
+                return panel;
+            }
 
-// Arquivo começando com "." nunca é aceito localmente (arquivo de sistema/
-// sincronização — mesma regra aplicada no servidor e, futuramente, no
-// Avaliador.html/Plagio.html ao escanear pastas).
-function nomeIgnoravelCliente_(nome){
-  return String(nome || '').charAt(0) === '.';
-}
+            // Arquivo começando com "." nunca é aceito localmente (arquivo de sistema/
+            // sincronização — mesma regra aplicada no servidor e, futuramente, no
+            // Avaliador.html/Plagio.html ao escanear pastas).
+            function nomeIgnoravelCliente_(nome) {
+                return String(nome || "").charAt(0) === ".";
+            }
 
-function renderUploadSlot(regra){
-  if (!state.arquivosPorTipo[regra.tipo]) state.arquivosPorTipo[regra.tipo] = [];
-  const max = regra.max != null && regra.max !== '' ? Number(regra.max) : Infinity;
-  const min = Number(regra.min || 0);
-  const accept = (regra.extensoes || []).join(',');
-  const faixa = min === max ? `exatamente ${min}` : `${min}–${max === Infinity ? '∞' : max}`;
-  const existentes = state.arquivosExistentesPorTipo[regra.tipo] || [];
-  const reaproveitando = () => !!state.tiposReaproveitados[regra.tipo] && existentes.length > 0;
+            function renderUploadSlot(regra) {
+                if (!state.arquivosPorTipo[regra.tipo])
+                    state.arquivosPorTipo[regra.tipo] = [];
+                const max =
+                    regra.max != null && regra.max !== ""
+                        ? Number(regra.max)
+                        : Infinity;
+                const min = Number(regra.min || 0);
+                const accept = (regra.extensoes || []).join(",");
+                const faixa =
+                    min === max
+                        ? `exatamente ${min}`
+                        : `${min}–${max === Infinity ? "∞" : max}`;
+                const existentes =
+                    state.arquivosExistentesPorTipo[regra.tipo] || [];
+                const reaproveitando = () =>
+                    !!state.tiposReaproveitados[regra.tipo] &&
+                    existentes.length > 0;
 
-  const slot = h(`
+                const slot = h(`
     <div class="upload-slot">
       <div class="slot-head">
         <div>
           <div class="slot-title">${escapeHtml(regra.tipo)}</div>
-          <div class="slot-rule">${escapeHtml((regra.extensoes || []).join(', '))} · ${faixa} arquivo(s)${regra.palavra_chave_nome ? ` · nome deve conter "${escapeHtml(regra.palavra_chave_nome)}"` : ''}</div>
+          <div class="slot-rule">${escapeHtml((regra.extensoes || []).join(", "))} · ${faixa} arquivo(s)${regra.palavra_chave_nome ? ` · nome deve conter "${escapeHtml(regra.palavra_chave_nome)}"` : ""}</div>
         </div>
         <label class="btn secondary small slotAddBtn">
           + Adicionar
-          <input type="file" style="display:none;" ${max > 1 ? 'multiple' : ''} accept="${escapeHtml(accept)}" class="slotFileInput">
+          <input type="file" style="display:none;" ${max > 1 ? "multiple" : ""} accept="${escapeHtml(accept)}" class="slotFileInput">
         </label>
       </div>
-      ${regra.enunciado ? `<div class="desc" style="white-space:pre-wrap; font-size:13px; background:var(--bg-alt,#f6f5f1); border-radius:8px; padding:10px 12px; margin:8px 0;">${escapeHtml(regra.enunciado)}</div>` : ''}
+      ${regra.enunciado ? `<div class="desc" style="white-space:pre-wrap; font-size:13px; background:var(--bg-alt,#f6f5f1); border-radius:8px; padding:10px 12px; margin:8px 0;">${escapeHtml(regra.enunciado)}</div>` : ""}
       <div class="reaproveitoWrap"></div>
       <div class="chips"></div>
     </div>
   `);
 
-  function refresh(){
-    const reWrap = slot.querySelector('.reaproveitoWrap');
-    reWrap.innerHTML = '';
-    const addBtn = slot.querySelector('.slotAddBtn');
+                function refresh() {
+                    const reWrap = slot.querySelector(".reaproveitoWrap");
+                    reWrap.innerHTML = "";
+                    const addBtn = slot.querySelector(".slotAddBtn");
 
-    if (reaproveitando()){
-      // Reaproveitando: esconde o input de novo arquivo, mostra o que já
-      // está na pasta (de uma entrega anterior) e a opção de trocar.
-      addBtn.style.display = 'none';
-      const bloco = h(`
+                    if (reaproveitando()) {
+                        // Reaproveitando: esconde o input de novo arquivo, mostra o que já
+                        // está na pasta (de uma entrega anterior) e a opção de trocar.
+                        addBtn.style.display = "none";
+                        const bloco = h(`
         <div class="banner info" style="margin:0 0 10px;">
-          ✓ Já enviado anteriormente — não precisa reenviar: ${existentes.map((e) => `<strong>${escapeHtml(e.filename)}</strong>`).join(', ')}
+          ✓ Já enviado anteriormente — não precisa reenviar: ${existentes.map((e) => `<strong>${escapeHtml(e.filename)}</strong>`).join(", ")}
           <div style="margin-top:8px;"><button type="button" class="btn secondary small" id="btnSubstituir_${escapeHtml(regra.tipo)}">Substituir arquivos</button></div>
         </div>
       `);
-      bloco.querySelector('button').addEventListener('click', () => {
-        state.tiposReaproveitados[regra.tipo] = false;
-        refresh();
-      });
-      reWrap.appendChild(bloco);
-    } else {
-      addBtn.style.display = '';
-      if (existentes.length){
-        const bloco = h(`
+                        bloco
+                            .querySelector("button")
+                            .addEventListener("click", () => {
+                                state.tiposReaproveitados[regra.tipo] = false;
+                                refresh();
+                            });
+                        reWrap.appendChild(bloco);
+                    } else {
+                        addBtn.style.display = "";
+                        if (existentes.length) {
+                            const bloco = h(`
           <div class="desc" style="margin:0 0 8px;">
-            Você tinha enviado antes: ${existentes.map((e) => escapeHtml(e.filename)).join(', ')}.
+            Você tinha enviado antes: ${existentes.map((e) => escapeHtml(e.filename)).join(", ")}.
             <button type="button" class="btn secondary small" style="margin-left:4px;">↺ Usar de novo</button>
           </div>
         `);
-        bloco.querySelector('button').addEventListener('click', () => {
-          state.tiposReaproveitados[regra.tipo] = true;
-          // Volta a reaproveitar o(s) arquivo(s) já enviado(s) — qualquer
-          // arquivo novo que o aluno tenha anexado enquanto estava em modo
-          // "substituir" deixa de fazer sentido (não vai ser usado) e
-          // ficava, por bug, ainda visível como chip; agora é removido
-          // junto, pra não parecer que os dois serão enviados.
-          state.arquivosPorTipo[regra.tipo] = [];
-          refresh();
-        });
-        reWrap.appendChild(bloco);
-      }
-    }
+                            bloco
+                                .querySelector("button")
+                                .addEventListener("click", () => {
+                                    state.tiposReaproveitados[regra.tipo] =
+                                        true;
+                                    // Volta a reaproveitar o(s) arquivo(s) já enviado(s) — qualquer
+                                    // arquivo novo que o aluno tenha anexado enquanto estava em modo
+                                    // "substituir" deixa de fazer sentido (não vai ser usado) e
+                                    // ficava, por bug, ainda visível como chip; agora é removido
+                                    // junto, pra não parecer que os dois serão enviados.
+                                    state.arquivosPorTipo[regra.tipo] = [];
+                                    refresh();
+                                });
+                            reWrap.appendChild(bloco);
+                        }
+                    }
 
-    const chipsWrap = slot.querySelector('.chips');
-    chipsWrap.innerHTML = '';
-    state.arquivosPorTipo[regra.tipo].forEach((f, i) => {
-      const chip = h(`<span class="file-chip">${escapeHtml(f.name)} <button type="button">✕</button></span>`);
-      chip.querySelector('button').addEventListener('click', () => {
-        state.arquivosPorTipo[regra.tipo].splice(i, 1);
-        refresh();
-      });
-      chipsWrap.appendChild(chip);
-    });
+                    const chipsWrap = slot.querySelector(".chips");
+                    chipsWrap.innerHTML = "";
+                    state.arquivosPorTipo[regra.tipo].forEach((f, i) => {
+                        const chip = h(
+                            `<span class="file-chip">${escapeHtml(f.name)} <button type="button">✕</button></span>`,
+                        );
+                        chip.querySelector("button").addEventListener(
+                            "click",
+                            () => {
+                                state.arquivosPorTipo[regra.tipo].splice(i, 1);
+                                refresh();
+                            },
+                        );
+                        chipsWrap.appendChild(chip);
+                    });
 
-    const count = reaproveitando() ? existentes.length : state.arquivosPorTipo[regra.tipo].length;
-    slot.classList.toggle('filled', count >= min && count <= max);
-    slot.classList.toggle('error', count > max);
-  }
+                    const count = reaproveitando()
+                        ? existentes.length
+                        : state.arquivosPorTipo[regra.tipo].length;
+                    slot.classList.toggle(
+                        "filled",
+                        count >= min && count <= max,
+                    );
+                    slot.classList.toggle("error", count > max);
+                }
 
-  slot.querySelector('.slotFileInput').addEventListener('change', (e) => {
-    const selecionados = Array.from(e.target.files);
-    const aceitos = [];
-    const rejeitados = [];
-    selecionados.forEach((f) => {
-      if (nomeIgnoravelCliente_(f.name)) return; // arquivo oculto — ignorado silenciosamente
-      if (regra.palavra_chave_nome){
-        let bate;
-        try{ bate = new RegExp(regra.palavra_chave_nome, 'i').test(f.name); }
-        catch(err){ bate = f.name.toLowerCase().includes(String(regra.palavra_chave_nome).toLowerCase()); }
-        if (!bate){ rejeitados.push(f.name); return; }
-      }
-      aceitos.push(f);
-    });
-    if (max === 1) state.arquivosPorTipo[regra.tipo] = aceitos.slice(0, 1);
-    else state.arquivosPorTipo[regra.tipo] = state.arquivosPorTipo[regra.tipo].concat(aceitos).slice(0, max === Infinity ? undefined : max);
-    e.target.value = '';
-    if (rejeitados.length){
-      alert(`Rejeitado — o nome do arquivo precisa conter "${regra.palavra_chave_nome}":\n` + rejeitados.join('\n'));
-    }
-    refresh();
-  });
+                slot.querySelector(".slotFileInput").addEventListener(
+                    "change",
+                    (e) => {
+                        const selecionados = Array.from(e.target.files);
+                        const aceitos = [];
+                        const rejeitados = [];
+                        selecionados.forEach((f) => {
+                            if (nomeIgnoravelCliente_(f.name)) return; // arquivo oculto — ignorado silenciosamente
+                            if (regra.palavra_chave_nome) {
+                                let bate;
+                                try {
+                                    bate = new RegExp(
+                                        regra.palavra_chave_nome,
+                                        "i",
+                                    ).test(f.name);
+                                } catch (err) {
+                                    bate = f.name
+                                        .toLowerCase()
+                                        .includes(
+                                            String(
+                                                regra.palavra_chave_nome,
+                                            ).toLowerCase(),
+                                        );
+                                }
+                                if (!bate) {
+                                    rejeitados.push(f.name);
+                                    return;
+                                }
+                            }
+                            aceitos.push(f);
+                        });
+                        if (max === 1)
+                            state.arquivosPorTipo[regra.tipo] = aceitos.slice(
+                                0,
+                                1,
+                            );
+                        else
+                            state.arquivosPorTipo[regra.tipo] =
+                                state.arquivosPorTipo[regra.tipo]
+                                    .concat(aceitos)
+                                    .slice(
+                                        0,
+                                        max === Infinity ? undefined : max,
+                                    );
+                        e.target.value = "";
+                        if (rejeitados.length) {
+                            alert(
+                                `Rejeitado — o nome do arquivo precisa conter "${regra.palavra_chave_nome}":\n` +
+                                    rejeitados.join("\n"),
+                            );
+                        }
+                        refresh();
+                    },
+                );
 
-  refresh();
-  return slot;
-}
+                refresh();
+                return slot;
+            }
 
-/* ==========================================================================
+            /* ==========================================================================
    EXTRAÇÃO MÍNIMA DE TEXTO — só o necessário pra conferir o "ITENS:" do
    enunciado (Relatório em PDF, Python em notebook, ou qualquer outro tipo
    que o professor tenha configurado com essa exigência). Nada de identificar
    tipo por conteúdo, nada de cruzamento entre arquivos — isso agora é
    trabalho exclusivo do Avaliador.html (com IA, depois do envio).
    ========================================================================== */
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            pdfjsLib.GlobalWorkerOptions.workerSrc =
+                "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-async function extrairTextoPDF_(file){
-  const buf = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
-  let texto = '';
-  for (let p = 1; p <= pdf.numPages; p++){
-    const page = await pdf.getPage(p);
-    const content = await page.getTextContent();
-    texto += content.items.map((it) => it.str).join(' ') + '\n';
-  }
-  return texto;
-}
+            async function extrairTextoPDF_(file) {
+                const buf = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+                let texto = "";
+                for (let p = 1; p <= pdf.numPages; p++) {
+                    const page = await pdf.getPage(p);
+                    const content = await page.getTextContent();
+                    texto += content.items.map((it) => it.str).join(" ") + "\n";
+                }
+                return texto;
+            }
 
-async function extrairTextoIpynb_(file){
-  try{
-    const json = JSON.parse(await file.text());
-    return (json.cells || [])
-      .map((c) => (Array.isArray(c.source) ? c.source.join('') : (c.source || '')))
-      .join('\n\n');
-  }catch(e){
-    return '';
-  }
-}
+            async function extrairTextoIpynb_(file) {
+                try {
+                    const json = JSON.parse(await file.text());
+                    return (json.cells || [])
+                        .map((c) =>
+                            Array.isArray(c.source)
+                                ? c.source.join("")
+                                : c.source || "",
+                        )
+                        .join("\n\n");
+                } catch (e) {
+                    return "";
+                }
+            }
 
-// Mesma regra do backend (extrairItensDoEnunciado_/Code.gs): só precisa
-// extrair texto pros tipos cujo enunciado tiver o marcador "ITENS:".
-function precisaExtrairTexto_(regra){
-  return /itens\s*:/i.test(regra.enunciado || '');
-}
+            // Mesma regra do backend (extrairItensDoEnunciado_/Code.gs): só precisa
+            // extrair texto pros tipos cujo enunciado tiver o marcador "ITENS:".
+            function precisaExtrairTexto_(regra) {
+                return /itens\s*:/i.test(regra.enunciado || "");
+            }
 
-async function extrairTextoDoTipo_(regra){
-  const arquivos = state.arquivosPorTipo[regra.tipo] || [];
-  if (!arquivos.length) return '';
-  const textos = [];
-  for (const f of arquivos){
-    const nome = f.name.toLowerCase();
-    if (nome.endsWith('.pdf')) textos.push(await extrairTextoPDF_(f).catch(() => ''));
-    else if (nome.endsWith('.ipynb')) textos.push(await extrairTextoIpynb_(f));
-    else textos.push(await f.text().catch(() => ''));
-  }
-  return textos.join('\n\n');
-}
+            async function extrairTextoDoTipo_(regra) {
+                const arquivos = state.arquivosPorTipo[regra.tipo] || [];
+                if (!arquivos.length) return "";
+                const textos = [];
+                for (const f of arquivos) {
+                    const nome = f.name.toLowerCase();
+                    if (nome.endsWith(".pdf"))
+                        textos.push(await extrairTextoPDF_(f).catch(() => ""));
+                    else if (nome.endsWith(".ipynb"))
+                        textos.push(await extrairTextoIpynb_(f));
+                    else textos.push(await f.text().catch(() => ""));
+                }
+                return textos.join("\n\n");
+            }
 
-/* ==========================================================================
+            /* ==========================================================================
    VERIFICAÇÃO — iniciar tentativa (ou reusar) + extrair texto localmente
    (só dos tipos que precisam) + verificação determinística no servidor.
    ========================================================================== */
-// true se o aluno optou por manter o(s) arquivo(s) já enviado(s) antes pra
-// esse tipo, em vez de reanexar do zero (ver renderUploadSlot).
-function estaReaproveitando_(tipo){
-  return !!state.tiposReaproveitados[tipo] && (state.arquivosExistentesPorTipo[tipo] || []).length > 0;
-}
-function contagemEfetivaTipo_(tipo){
-  return estaReaproveitando_(tipo)
-    ? (state.arquivosExistentesPorTipo[tipo] || []).length
-    : (state.arquivosPorTipo[tipo] || []).length;
-}
+            // true se o aluno optou por manter o(s) arquivo(s) já enviado(s) antes pra
+            // esse tipo, em vez de reanexar do zero (ver renderUploadSlot).
+            function estaReaproveitando_(tipo) {
+                return (
+                    !!state.tiposReaproveitados[tipo] &&
+                    (state.arquivosExistentesPorTipo[tipo] || []).length > 0
+                );
+            }
+            function contagemEfetivaTipo_(tipo) {
+                return estaReaproveitando_(tipo)
+                    ? (state.arquivosExistentesPorTipo[tipo] || []).length
+                    : (state.arquivosPorTipo[tipo] || []).length;
+            }
 
-/* ==========================================================================
+            /* ==========================================================================
    MONTAR MANIFESTO + TEXTOS — a partir do que está em state.arquivosPorTipo
    /reaproveitamento agora. Usado tanto por verificarArquivos (preview, sem
    gravar nada) quanto por enviarArquivos (o envio de verdade) — as duas
@@ -846,162 +1417,215 @@ function contagemEfetivaTipo_(tipo){
    o relatório que o aluno viu na verificação poderia não bater com o que
    de fato é enviado.
    ========================================================================== */
-async function montarManifestoETextos_(){
-  const regras = state.trabalho.regras_arquivos || [];
+            async function montarManifestoETextos_() {
+                const regras = state.trabalho.regras_arquivos || [];
 
-  const manifesto = [];
-  regras.forEach((r) => {
-    if (estaReaproveitando_(r.tipo)){
-      (state.arquivosExistentesPorTipo[r.tipo] || []).forEach((e) => {
-        manifesto.push({ tipo: r.tipo, filename: e.filename, reaproveitado: true });
-      });
-    } else {
-      (state.arquivosPorTipo[r.tipo] || []).forEach((f) => manifesto.push({ tipo: r.tipo, filename: f.name }));
-    }
-  });
-  Object.entries(state.arquivosPorTipo).forEach(([tipo, files]) => {
-    if (regras.some((r) => r.tipo === tipo)) return;
-    files.forEach((f) => manifesto.push({ tipo, filename: f.name }));
-  });
+                const manifesto = [];
+                regras.forEach((r) => {
+                    if (estaReaproveitando_(r.tipo)) {
+                        (state.arquivosExistentesPorTipo[r.tipo] || []).forEach(
+                            (e) => {
+                                manifesto.push({
+                                    tipo: r.tipo,
+                                    filename: e.filename,
+                                    reaproveitado: true,
+                                });
+                            },
+                        );
+                    } else {
+                        (state.arquivosPorTipo[r.tipo] || []).forEach((f) =>
+                            manifesto.push({ tipo: r.tipo, filename: f.name }),
+                        );
+                    }
+                });
+                Object.entries(state.arquivosPorTipo).forEach(
+                    ([tipo, files]) => {
+                        if (regras.some((r) => r.tipo === tipo)) return;
+                        files.forEach((f) =>
+                            manifesto.push({ tipo, filename: f.name }),
+                        );
+                    },
+                );
 
-  const textosPorTipo = {};
-  for (const regra of regras){
-    if (precisaExtrairTexto_(regra)){
-      const arquivos = state.arquivosPorTipo[regra.tipo] || [];
-      state.progressoVerificacao = `Lendo ${arquivos.length} arquivo(s) de ${regra.tipo}...`;
-      render();
-      textosPorTipo[regra.tipo] = await extrairTextoDoTipo_(regra);
-    }
-  }
+                const textosPorTipo = {};
+                for (const regra of regras) {
+                    if (precisaExtrairTexto_(regra)) {
+                        const arquivos =
+                            state.arquivosPorTipo[regra.tipo] || [];
+                        state.progressoVerificacao = `Lendo ${arquivos.length} arquivo(s) de ${regra.tipo}...`;
+                        render();
+                        textosPorTipo[regra.tipo] =
+                            await extrairTextoDoTipo_(regra);
+                    }
+                }
 
-  return { manifesto, textosPorTipo };
-}
+                return { manifesto, textosPorTipo };
+            }
 
-/* ==========================================================================
+            /* ==========================================================================
    VERIFICAR (preview) — NÃO grava nada no servidor, NÃO consome tentativa
    nenhuma. Pode ser repetido quantas vezes o aluno quiser antes de decidir
    enviar de verdade. Mostra o relatório e, se ele decidir prosseguir,
    "Enviar Arquivos" (enviarArquivos, abaixo) é o que de fato manda pro
    Drive e consome 1 tentativa.
    ========================================================================== */
-async function verificarArquivos(){
-  const regras = state.trabalho.regras_arquivos || [];
-  const faltando = regras.filter((r) => contagemEfetivaTipo_(r.tipo) < Number(r.min || 0));
-  if (faltando.length){
-    alert('Faltam arquivos obrigatórios: ' + faltando.map((r) => r.tipo).join(', '));
-    return;
-  }
+            async function verificarArquivos() {
+                const regras = state.trabalho.regras_arquivos || [];
+                const faltando = regras.filter(
+                    (r) => contagemEfetivaTipo_(r.tipo) < Number(r.min || 0),
+                );
+                if (faltando.length) {
+                    alert(
+                        "Faltam arquivos obrigatórios: " +
+                            faltando.map((r) => r.tipo).join(", "),
+                    );
+                    return;
+                }
 
-  state.tela = 'verificando';
-  state.progressoVerificacao = 'Conferindo seus arquivos (isso não envia nada ainda)...';
-  render();
+                state.tela = "verificando";
+                state.progressoVerificacao =
+                    "Conferindo seus arquivos (isso não envia nada ainda)...";
+                render();
 
-  const { manifesto, textosPorTipo } = await montarManifestoETextos_();
+                const { manifesto, textosPorTipo } =
+                    await montarManifestoETextos_();
 
-  state.progressoVerificacao = 'Conferindo regras e itens do enunciado...';
-  render();
+                state.progressoVerificacao =
+                    "Conferindo regras e itens do enunciado...";
+                render();
 
-  const rVerificar = await chamarBackend('verificarEnvioTrabalho', {
-    id_trabalho: state.idTrabalho, id_token: state.idToken,
-    matricula_selecionada: state.matriculaDigitada || undefined,
-    manifesto_arquivos_json: JSON.stringify(manifesto),
-    textos_por_tipo_json: JSON.stringify(textosPorTipo),
-  }, true);
+                const rVerificar = await chamarBackend(
+                    "verificarEnvioTrabalho",
+                    {
+                        id_trabalho: state.idTrabalho,
+                        id_token: state.idToken,
+                        matricula_selecionada:
+                            state.matriculaDigitada || undefined,
+                        manifesto_arquivos_json: JSON.stringify(manifesto),
+                        textos_por_tipo_json: JSON.stringify(textosPorTipo),
+                    },
+                    true,
+                );
 
-  if (!rVerificar.ok){
-    state.erroContexto = 'verificacao';
-    state.erroGeral = rVerificar;
-    state.tela = 'erro';
-    render();
-    return;
-  }
+                if (!rVerificar.ok) {
+                    state.erroContexto = "verificacao";
+                    state.erroGeral = rVerificar;
+                    state.tela = "erro";
+                    render();
+                    return;
+                }
 
-  state.manifesto = manifesto;
-  state.relatorioPreview = rVerificar;
-  state.tela = 'relatorio';
-  render();
-}
+                state.manifesto = manifesto;
+                state.relatorioPreview = rVerificar;
+                state.tela = "relatorio";
+                render();
+            }
 
-/* ==========================================================================
+            /* ==========================================================================
    BLOCOS DE PENDÊNCIA (checklist de arquivos + itens obrigatórios do
    enunciado) — usado na tela de relatório, pra listar só o que precisa da
    atenção do aluno (itens 100% detectados não aparecem individualmente).
    ========================================================================== */
-function renderBlocosPendencias(rel){
-  const blocosChecklist = (rel.checklist_regras || []).map((c) => `
+            function renderBlocosPendencias(rel) {
+                const blocosChecklist = (rel.checklist_regras || [])
+                    .map(
+                        (c) => `
     <div class="panel">
-      <h2>${c.ok ? '✓' : '✕'} ${escapeHtml(c.tipo)}</h2>
-      <div class="crit-row" style="border-color:${c.quantidade.ok ? 'var(--teal)' : 'var(--red)'};">
-        <div class="top"><div>${c.quantidade.ok ? '✓' : '✕'} Quantidade: ${c.quantidade.enviado} enviado(s) — esperado ${escapeHtml(c.quantidade.esperado)}</div></div>
+      <h2>${c.ok ? "✓" : "✕"} ${escapeHtml(c.tipo)}</h2>
+      <div class="crit-row" style="border-color:${c.quantidade.ok ? "var(--teal)" : "var(--red)"};">
+        <div class="top"><div>${c.quantidade.ok ? "✓" : "✕"} Quantidade: ${c.quantidade.enviado} enviado(s) — esperado ${escapeHtml(c.quantidade.esperado)}</div></div>
       </div>
-      ${(c.arquivos || []).map((a) => `
-        <div class="crit-row" style="border-color:${a.ok ? 'var(--teal)' : 'var(--red)'};">
-          <div class="top"><div>${a.ok ? '✓' : '✕'} ${escapeHtml(a.filename)}</div></div>
-          ${a.checks.map((chk) => `<div class="desc" style="margin:2px 0 0; color:${chk.ok ? 'var(--muted)' : 'var(--red)'};">${chk.ok ? '✓' : '✕'} ${escapeHtml(chk.label)}${chk.detalhe ? ': ' + escapeHtml(chk.detalhe) : ''}</div>`).join('')}
+      ${(c.arquivos || [])
+          .map(
+              (a) => `
+        <div class="crit-row" style="border-color:${a.ok ? "var(--teal)" : "var(--red)"};">
+          <div class="top"><div>${a.ok ? "✓" : "✕"} ${escapeHtml(a.filename)}</div></div>
+          ${a.checks.map((chk) => `<div class="desc" style="margin:2px 0 0; color:${chk.ok ? "var(--muted)" : "var(--red)"};">${chk.ok ? "✓" : "✕"} ${escapeHtml(chk.label)}${chk.detalhe ? ": " + escapeHtml(chk.detalhe) : ""}</div>`).join("")}
         </div>
-      `).join('')}
+      `,
+          )
+          .join("")}
     </div>
-  `).join('');
+  `,
+                    )
+                    .join("");
 
-  const totalItensPorTipo = Object.entries(rel.itens_por_tipo || {}).map(([tipo, itens]) => {
-    const faltando = itens.filter((it) => !it.ok).length;
-    return { tipo, total: itens.length, faltando };
-  });
-  const totalItensFaltando = totalItensPorTipo.reduce((soma, x) => soma + x.faltando, 0);
+                const totalItensPorTipo = Object.entries(
+                    rel.itens_por_tipo || {},
+                ).map(([tipo, itens]) => {
+                    const faltando = itens.filter((it) => !it.ok).length;
+                    return { tipo, total: itens.length, faltando };
+                });
+                const totalItensFaltando = totalItensPorTipo.reduce(
+                    (soma, x) => soma + x.faltando,
+                    0,
+                );
 
-  const blocosItens = Object.entries(rel.itens_por_tipo || {}).map(([tipo, itens]) => {
-    const pendentes = itens.filter((it) => !it.ok);
-    if (!pendentes.length) return ''; // 100% detectado -> não precisa listar item por item
-    return `
+                const blocosItens = Object.entries(rel.itens_por_tipo || {})
+                    .map(([tipo, itens]) => {
+                        const pendentes = itens.filter((it) => !it.ok);
+                        if (!pendentes.length) return ""; // 100% detectado -> não precisa listar item por item
+                        return `
     <div class="panel">
       <h2>⚠️ ${escapeHtml(tipo)} — itens exigidos no enunciado</h2>
       <div class="desc" style="margin-top:0;">${pendentes.length} de ${itens.length} item(ns) NÃO foram localizados automaticamente no texto extraído.</div>
-      <div>${pendentes.map((it) => `
+      <div>${pendentes
+          .map(
+              (it) => `
         <div class="crit-row" style="border-color:var(--red);">
           <div class="top"><div>✕ ${escapeHtml(it.item)}</div></div>
-          ${it.motivo ? `<div class="desc" style="margin:4px 0 0; color:var(--red);">${escapeHtml(it.motivo)}</div>` : ''}
-          ${it.reaproveitado ? `<div class="desc" style="margin:4px 0 0; font-style:italic;">Resultado reaproveitado de uma entrega anterior — este arquivo específico não foi reconferido nesta entrega.</div>` : ''}
+          ${it.motivo ? `<div class="desc" style="margin:4px 0 0; color:var(--red);">${escapeHtml(it.motivo)}</div>` : ""}
+          ${it.reaproveitado ? `<div class="desc" style="margin:4px 0 0; font-style:italic;">Resultado reaproveitado de uma entrega anterior — este arquivo específico não foi reconferido nesta entrega.</div>` : ""}
         </div>
-      `).join('')}</div>
+      `,
+          )
+          .join("")}</div>
     </div>
   `;
-  }).join('');
+                    })
+                    .join("");
 
-  const bannerItens = totalItensPorTipo.length ? `
-    <div class="panel" style="border-color:${totalItensFaltando ? 'var(--amber)' : 'var(--line)'};">
-      <h2>${totalItensFaltando ? '⚠️' : '✓'} Itens obrigatórios do enunciado</h2>
-      <div class="desc">${totalItensFaltando
-        ? `${totalItensFaltando} item(ns) obrigatório(s) NÃO foram encontrados automaticamente no texto dos seus arquivos (veja abaixo qual tipo e qual item).`
-        : 'Todos os itens obrigatórios do enunciado foram encontrados automaticamente no texto dos seus arquivos.'}</div>
+                const bannerItens = totalItensPorTipo.length
+                    ? `
+    <div class="panel" style="border-color:${totalItensFaltando ? "var(--amber)" : "var(--line)"};">
+      <h2>${totalItensFaltando ? "⚠️" : "✓"} Itens obrigatórios do enunciado</h2>
+      <div class="desc">${
+          totalItensFaltando
+              ? `${totalItensFaltando} item(ns) obrigatório(s) NÃO foram encontrados automaticamente no texto dos seus arquivos (veja abaixo qual tipo e qual item).`
+              : "Todos os itens obrigatórios do enunciado foram encontrados automaticamente no texto dos seus arquivos."
+      }</div>
       <div class="desc" style="margin-top:8px; font-style:italic;">Esta é uma verificação AUTOMÁTICA de texto — ela pode errar (falso negativo), por exemplo se um item aparecer como imagem/print dentro do PDF, com título muito diferente do esperado, ou se o PDF não tiver texto selecionável. Um item marcado com ✕ não significa necessariamente que ele está ausente do seu trabalho — <strong>abra seu arquivo e confira manualmente cada item marcado com ✕ antes de confirmar a entrega definitiva</strong>. Se você conferiu e o item está lá, pode confirmar mesmo assim: quem avalia o conteúdo de verdade é o professor, depois do envio.</div>
     </div>
-  ` : `
+  `
+                    : `
     <div class="panel">
       <h2>Itens obrigatórios do enunciado</h2>
       <div class="desc">Nenhum tipo de arquivo deste trabalho tem uma lista "ITENS:" configurada no enunciado — por isso não há checklist de itens aqui. Se você esperava ver essa checagem, confirme com o professor se o enunciado de algum tipo de arquivo deveria ter um marcador "ITENS:".</div>
     </div>
   `;
 
-  return `<div class="panel"><h2>Checklist de arquivos</h2></div>${blocosChecklist}${bannerItens}${blocosItens}`;
-}
+                return `<div class="panel"><h2>Checklist de arquivos</h2></div>${blocosChecklist}${bannerItens}${blocosItens}`;
+            }
 
-/* ==========================================================================
+            /* ==========================================================================
    RELATÓRIO — regras + itens obrigatórios por tipo, atendidos/ausentes.
    NUNCA bloqueia o botão de entrega — mostra aviso quando há pendência,
    mas quem decide se entrega mesmo assim é o aluno.
    ========================================================================== */
-function renderRelatorio(){
-  const rel = state.relatorioPreview.relatorio;
-  const p = state.relatorioPreview;
+            function renderRelatorio() {
+                const rel = state.relatorioPreview.relatorio;
+                const p = state.relatorioPreview;
 
-  const panel = h(`
+                const panel = h(`
     <div>
       <div class="panel" style="text-align:center;">
         <div class="desc">Isto ainda é só uma conferência — nada foi enviado. Se você enviar agora, será a entrega ${p.numero_tentativa_previsto} de ${p.tentativas_limite}.</div>
-        <div class="big-icon">${rel.tudo_ok ? '✅' : '⚠️'}</div>
-        <div class="desc" style="margin-top:0;">${rel.tudo_ok
-          ? 'Conferência automática de FORMATO concluída sem pendências: arquivos certos, quantidades certas, itens exigidos localizados no texto.'
-          : 'Há pendências na conferência automática — veja o checklist abaixo. Você AINDA PODE enviar mesmo assim.'}</div>
+        <div class="big-icon">${rel.tudo_ok ? "✅" : "⚠️"}</div>
+        <div class="desc" style="margin-top:0;">${
+            rel.tudo_ok
+                ? "Conferência automática de FORMATO concluída sem pendências: arquivos certos, quantidades certas, itens exigidos localizados no texto."
+                : "Há pendências na conferência automática — veja o checklist abaixo. Você AINDA PODE enviar mesmo assim."
+        }</div>
         <div class="desc" style="margin-top:6px; font-size:12.5px; font-style:italic;">Isso é só uma conferência automática de formato — não avalia a qualidade ou o conteúdo do seu trabalho. Essa avaliação é feita pelo professor depois do envio.</div>
       </div>
       ${renderBlocosPendencias(rel)}
@@ -1009,200 +1633,275 @@ function renderRelatorio(){
     </div>
   `);
 
-  const acaoWrap = panel.querySelector('#acaoFinal');
+                const acaoWrap = panel.querySelector("#acaoFinal");
 
-  // TODO: o texto exato do aviso antes do envio com pendência ainda vai ser
-  // definido — este é um texto provisório.
-  const enviarComAviso = () => {
-    if (!rel.tudo_ok && !confirm('Existem itens não localizados ou regras não atendidas na sua entrega (veja a lista acima). Você pode enviar mesmo assim, mas isso pode afetar sua avaliação. Deseja enviar mesmo assim?')) return;
-    enviarArquivos();
-  };
+                // TODO: o texto exato do aviso antes do envio com pendência ainda vai ser
+                // definido — este é um texto provisório.
+                const enviarComAviso = () => {
+                    if (
+                        !rel.tudo_ok &&
+                        !confirm(
+                            "Existem itens não localizados ou regras não atendidas na sua entrega (veja a lista acima). Você pode enviar mesmo assim, mas isso pode afetar sua avaliação. Deseja enviar mesmo assim?",
+                        )
+                    )
+                        return;
+                    enviarArquivos();
+                };
 
-  const row = h(`<div class="btn-row"></div>`);
-  const btnNovo = h(`<button class="btn secondary">↻ Ajustar arquivos e verificar de novo</button>`);
-  btnNovo.addEventListener('click', () => { state.relatorioPreview = null; state.tela = 'trabalho'; render(); });
-  row.appendChild(btnNovo);
+                const row = h(`<div class="btn-row"></div>`);
+                const btnNovo = h(
+                    `<button class="btn secondary">↻ Ajustar arquivos e verificar de novo</button>`,
+                );
+                btnNovo.addEventListener("click", () => {
+                    state.relatorioPreview = null;
+                    state.tela = "trabalho";
+                    render();
+                });
+                row.appendChild(btnNovo);
 
-  if (p.seria_ultima_tentativa){
-    acaoWrap.appendChild(h(`<div class="banner warn">⚠ Esta é a sua ÚLTIMA entrega disponível para este trabalho. Se enviar agora, esta será sua <strong>entrega definitiva</strong> — não há nova chance depois dela.</div>`));
-    const btn = h(`<button class="btn teal piscando-vermelho">Confirmação Final de Envio</button>`);
-    btn.addEventListener('click', enviarComAviso);
-    row.appendChild(btn);
-  } else {
-    const btn = h(`<button class="btn teal">Enviar Arquivos — Entrega ${p.numero_tentativa_previsto} →</button>`);
-    btn.addEventListener('click', enviarComAviso);
-    row.appendChild(btn);
-  }
-  acaoWrap.appendChild(row);
+                if (p.seria_ultima_tentativa) {
+                    acaoWrap.appendChild(
+                        h(
+                            `<div class="banner warn">⚠ Esta é a sua ÚLTIMA entrega disponível para este trabalho. Se enviar agora, esta será sua <strong>entrega definitiva</strong> — não há nova chance depois dela.</div>`,
+                        ),
+                    );
+                    const btn = h(
+                        `<button class="btn teal piscando-vermelho">Confirmação Final de Envio</button>`,
+                    );
+                    btn.addEventListener("click", enviarComAviso);
+                    row.appendChild(btn);
+                } else {
+                    const btn = h(
+                        `<button class="btn teal">Enviar Arquivos — Entrega ${p.numero_tentativa_previsto} →</button>`,
+                    );
+                    btn.addEventListener("click", enviarComAviso);
+                    row.appendChild(btn);
+                }
+                acaoWrap.appendChild(row);
 
-  return panel;
-}
+                return panel;
+            }
 
-/* ==========================================================================
+            /* ==========================================================================
    CONFIRMAÇÃO DEFINITIVA — manifesto, upload real, reconferência no servidor
    ========================================================================== */
-function fileParaBase64(file){
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
+            function fileParaBase64(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () =>
+                        resolve(String(reader.result).split(",")[1] || "");
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+            }
 
-function atualizarProgresso(filename, status){
-  const item = state.progressoUpload.find((p) => p.filename === filename);
-  if (item) item.status = status;
-  if (state.tela === 'confirmando') render();
-}
+            function atualizarProgresso(filename, status) {
+                const item = state.progressoUpload.find(
+                    (p) => p.filename === filename,
+                );
+                if (item) item.status = status;
+                if (state.tela === "confirmando") render();
+            }
 
-async function enviarArquivos(){
-  state.tela = 'confirmando';
-  state.progressoUpload = [];
-  render();
+            async function enviarArquivos() {
+                state.tela = "confirmando";
+                state.progressoUpload = [];
+                render();
 
-  const { manifesto, textosPorTipo } = await montarManifestoETextos_();
+                const { manifesto, textosPorTipo } =
+                    await montarManifestoETextos_();
 
-  // Chama enviarArquivosTrabalho — ISSO SIM consome 1 tentativa (ou reusa a
-  // mesma, se for um retry de um envio anterior que não terminou por falha
-  // de rede; o servidor detecta isso sozinho, ver acaoEnviarArquivosTrabalho).
-  const rEnviar = await chamarBackend('enviarArquivosTrabalho', {
-    id_trabalho: state.idTrabalho, id_token: state.idToken,
-    matricula_selecionada: state.matriculaDigitada || undefined,
-    manifesto_arquivos_json: JSON.stringify(manifesto),
-    textos_por_tipo_json: JSON.stringify(textosPorTipo),
-  }, true);
-  if (!rEnviar.ok){
-    state.erroContexto = 'envio';
-    state.erroGeral = rEnviar;
-    state.tela = 'erro';
-    render();
-    return;
-  }
-  state.envio = { token: rEnviar.token, numero_tentativa: rEnviar.numero_tentativa, eh_ultima_tentativa: rEnviar.eh_ultima_tentativa };
+                // Chama enviarArquivosTrabalho — ISSO SIM consome 1 tentativa (ou reusa a
+                // mesma, se for um retry de um envio anterior que não terminou por falha
+                // de rede; o servidor detecta isso sozinho, ver acaoEnviarArquivosTrabalho).
+                const rEnviar = await chamarBackend(
+                    "enviarArquivosTrabalho",
+                    {
+                        id_trabalho: state.idTrabalho,
+                        id_token: state.idToken,
+                        matricula_selecionada:
+                            state.matriculaDigitada || undefined,
+                        manifesto_arquivos_json: JSON.stringify(manifesto),
+                        textos_por_tipo_json: JSON.stringify(textosPorTipo),
+                    },
+                    true,
+                );
+                if (!rEnviar.ok) {
+                    state.erroContexto = "envio";
+                    state.erroGeral = rEnviar;
+                    state.tela = "erro";
+                    render();
+                    return;
+                }
+                state.envio = {
+                    token: rEnviar.token,
+                    numero_tentativa: rEnviar.numero_tentativa,
+                    eh_ultima_tentativa: rEnviar.eh_ultima_tentativa,
+                };
 
-  const itens = [];
-  Object.entries(state.arquivosPorTipo).forEach(([tipo, files]) => {
-    files.forEach((f) => itens.push({ tipo, file: f }));
-  });
-  state.progressoUpload = itens.map((x) => ({ filename: x.file.name, status: 'pendente' }));
-  render();
+                const itens = [];
+                Object.entries(state.arquivosPorTipo).forEach(
+                    ([tipo, files]) => {
+                        files.forEach((f) => itens.push({ tipo, file: f }));
+                    },
+                );
+                state.progressoUpload = itens.map((x) => ({
+                    filename: x.file.name,
+                    status: "pendente",
+                }));
+                render();
 
-  const nomesFinaisEnviados = {}; // { tipo: [filename, ...] } — pra atualizar arquivosExistentesPorTipo localmente sem outra chamada
-  for (const item of itens){
-    atualizarProgresso(item.file.name, 'enviando');
-    let base64;
-    try{ base64 = await fileParaBase64(item.file); }
-    catch(e){ atualizarProgresso(item.file.name, 'erro'); continue; }
-    const rUp = await chamarBackend('uploadArquivoEntregaTrabalho', {
-      token: state.envio.token, tipo: item.tipo, filename: item.file.name,
-      mime_type: item.file.type || 'application/octet-stream', data_base64: base64,
-    }, true);
-    atualizarProgresso(item.file.name, rUp.ok ? 'ok' : 'erro');
-    if (rUp.ok){
-      (nomesFinaisEnviados[item.tipo] = nomesFinaisEnviados[item.tipo] || []).push(rUp.nome_final);
-    }
-  }
+                const nomesFinaisEnviados = {}; // { tipo: [filename, ...] } — pra atualizar arquivosExistentesPorTipo localmente sem outra chamada
+                for (const item of itens) {
+                    atualizarProgresso(item.file.name, "enviando");
+                    let base64;
+                    try {
+                        base64 = await fileParaBase64(item.file);
+                    } catch (e) {
+                        atualizarProgresso(item.file.name, "erro");
+                        continue;
+                    }
+                    const rUp = await chamarBackend(
+                        "uploadArquivoEntregaTrabalho",
+                        {
+                            token: state.envio.token,
+                            tipo: item.tipo,
+                            filename: item.file.name,
+                            mime_type:
+                                item.file.type || "application/octet-stream",
+                            data_base64: base64,
+                        },
+                        true,
+                    );
+                    atualizarProgresso(item.file.name, rUp.ok ? "ok" : "erro");
+                    if (rUp.ok) {
+                        (nomesFinaisEnviados[item.tipo] =
+                            nomesFinaisEnviados[item.tipo] || []).push(
+                            rUp.nome_final,
+                        );
+                    }
+                }
 
-  const rFinalizar = await chamarBackend('finalizarEntregaDefinitivaTrabalho', { token: state.envio.token });
-  if (!rFinalizar.ok){
-    if (rFinalizar.erro === 'ARQUIVOS_FALTANDO'){
-      state.erroGeral = { erro: 'ARQUIVOS_FALTANDO', detalhe: 'Alguns arquivos não foram recebidos corretamente: ' + (rFinalizar.faltando || []).map((f) => f.filename).join(', ') + '. Clique em tentar novamente — os arquivos que já foram recebidos não precisam ser reenviados do zero, mas por segurança o envio inteiro será reconferido.' };
-    } else {
-      state.erroGeral = rFinalizar;
-    }
-    state.erroContexto = 'envio';
-    state.tela = 'erro';
-    render();
-    return;
-  }
+                const rFinalizar = await chamarBackend(
+                    "finalizarEntregaDefinitivaTrabalho",
+                    { token: state.envio.token },
+                );
+                if (!rFinalizar.ok) {
+                    if (rFinalizar.erro === "ARQUIVOS_FALTANDO") {
+                        state.erroGeral = {
+                            erro: "ARQUIVOS_FALTANDO",
+                            detalhe:
+                                "Alguns arquivos não foram recebidos corretamente: " +
+                                (rFinalizar.faltando || [])
+                                    .map((f) => f.filename)
+                                    .join(", ") +
+                                ". Clique em tentar novamente — os arquivos que já foram recebidos não precisam ser reenviados do zero, mas por segurança o envio inteiro será reconferido.",
+                        };
+                    } else {
+                        state.erroGeral = rFinalizar;
+                    }
+                    state.erroContexto = "envio";
+                    state.tela = "erro";
+                    render();
+                    return;
+                }
 
-  if (rFinalizar.confirmado){
-    state.tela = 'confirmado';
-    render();
-    return;
-  }
+                if (rFinalizar.confirmado) {
+                    state.tela = "confirmado";
+                    render();
+                    return;
+                }
 
-  // Não é a entrega final — atualiza localmente o que já está no Drive
-  // (pros tipos reaproveitados, o que já estava; pros recém-enviados, o
-  // nome final que acabou de subir), pra reaproveitamento funcionar de
-  // cara se o aluno decidir fazer outro ciclo agora.
-  Object.entries(nomesFinaisEnviados).forEach(([tipo, nomes]) => {
-    state.arquivosExistentesPorTipo[tipo] = nomes.map((filename) => ({ filename }));
-  });
-  state.arquivosPorTipo = {};
-  Object.keys(state.arquivosExistentesPorTipo).forEach((tipo) => { state.tiposReaproveitados[tipo] = true; });
-  state.trabalho.tentativas_usadas = state.envio.numero_tentativa;
-  state.relatorioPreview = null;
+                // Não é a entrega final — atualiza localmente o que já está no Drive
+                // (pros tipos reaproveitados, o que já estava; pros recém-enviados, o
+                // nome final que acabou de subir), pra reaproveitamento funcionar de
+                // cara se o aluno decidir fazer outro ciclo agora.
+                Object.entries(nomesFinaisEnviados).forEach(([tipo, nomes]) => {
+                    state.arquivosExistentesPorTipo[tipo] = nomes.map(
+                        (filename) => ({ filename }),
+                    );
+                });
+                state.arquivosPorTipo = {};
+                Object.keys(state.arquivosExistentesPorTipo).forEach((tipo) => {
+                    state.tiposReaproveitados[tipo] = true;
+                });
+                state.trabalho.tentativas_usadas = state.envio.numero_tentativa;
+                state.relatorioPreview = null;
 
-  state.tela = 'enviado_parcial';
-  render();
-}
+                state.tela = "enviado_parcial";
+                render();
+            }
 
-function renderConfirmando(){
-  return h(`
+            function renderConfirmando() {
+                return h(`
     <div class="panel">
       <h2>Enviando arquivos...</h2>
       <div class="desc">Não feche esta aba até terminar.</div>
       <div>
-        ${state.progressoUpload.map((p) => `
-          <div class="progress-item ${p.status === 'ok' ? 'done' : p.status === 'erro' ? 'error' : 'pending'}">
-            <span class="icon">${p.status === 'ok' ? '✓' : p.status === 'erro' ? '✕' : p.status === 'enviando' ? '…' : '○'}</span>
+        ${state.progressoUpload
+            .map(
+                (p) => `
+          <div class="progress-item ${p.status === "ok" ? "done" : p.status === "erro" ? "error" : "pending"}">
+            <span class="icon">${p.status === "ok" ? "✓" : p.status === "erro" ? "✕" : p.status === "enviando" ? "…" : "○"}</span>
             <span>${escapeHtml(p.filename)}</span>
           </div>
-        `).join('')}
+        `,
+            )
+            .join("")}
       </div>
     </div>
   `);
-}
+            }
 
-function renderConfirmado(){
-  return h(`
+            function renderConfirmado() {
+                return h(`
     <div class="panel center-msg">
       <div class="big-icon">✅</div>
       <h2>Entrega definitiva confirmada</h2>
       <div class="desc">Seu trabalho foi registrado com sucesso. Você pode fechar esta página.</div>
     </div>
   `);
-}
+            }
 
-function renderEnviadoParcial(){
-  const t = state.trabalho;
-  const restantes = Math.max(0, t.tentativas_limite - t.tentativas_usadas);
-  const panel = h(`
+            function renderEnviadoParcial() {
+                const t = state.trabalho;
+                const restantes = Math.max(
+                    0,
+                    t.tentativas_limite - t.tentativas_usadas,
+                );
+                const panel = h(`
     <div class="panel center-msg">
       <div class="big-icon">📤</div>
       <h2>Arquivos enviados</h2>
       <div class="desc">Seus arquivos foram recebidos para avaliação.</div>
-      <div class="desc" style="margin-top:8px;">Você ainda tem ${restantes} envio${restantes===1?'':'s'} disponíve${restantes===1?'l':'is'} dentro do prazo de entrega.</div>
+      <div class="desc" style="margin-top:8px;">Você ainda tem ${restantes} envio${restantes === 1 ? "" : "s"} disponíve${restantes === 1 ? "l" : "is"} dentro do prazo de entrega.</div>
       <div class="btn-row" style="justify-content:center; margin-top:16px;">
         <button class="btn teal" id="btnNovoCicloEnvio">Fazer novo ciclo (verificar e reenviar)</button>
       </div>
     </div>
   `);
-  panel.querySelector('#btnNovoCicloEnvio').addEventListener('click', () => {
-    state.envio = null;
-    state.tela = 'trabalho';
-    render();
-  });
-  return panel;
-}
+                panel
+                    .querySelector("#btnNovoCicloEnvio")
+                    .addEventListener("click", () => {
+                        state.envio = null;
+                        state.tela = "trabalho";
+                        render();
+                    });
+                return panel;
+            }
 
-/* ==========================================================================
+            /* ==========================================================================
    INÍCIO
    ========================================================================== */
-(function initFromUrl(){
-  const qp = new URLSearchParams(window.location.search);
-  const t = qp.get('trabalho');
-  if (t) state.idTrabalho = t.trim().toUpperCase();
-})();
-$('#topbarSub').textContent = 'CLP + SCADA · autoavaliação';
-render();
-carregarMarcadorVersao();
-iniciarRelogioTopbar();
-
-
-
-</script>
-</body>
+            (function initFromUrl() {
+                const qp = new URLSearchParams(window.location.search);
+                const t = qp.get("trabalho");
+                if (t) state.idTrabalho = t.trim().toUpperCase();
+            })();
+            $("#topbarSub").textContent = "CLP + SCADA · autoavaliação";
+            render();
+            carregarMarcadorVersao();
+            iniciarRelogioTopbar();
+        </script>
+    </body>
 </html>
