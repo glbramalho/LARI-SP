@@ -183,6 +183,7 @@
             #chip-identidade {
                 display: flex;
                 align-items: center;
+                flex-wrap: wrap;
                 gap: 8px;
                 font-size: 12px;
                 color: var(--text2);
@@ -213,6 +214,22 @@
             .badge-erro {
                 background: #450a0a;
                 color: #f87171;
+            }
+            .badge-pseudo {
+                background: rgba(79, 143, 255, 0.15);
+                color: var(--accent);
+                text-transform: none;
+                letter-spacing: normal;
+            }
+
+            .marcador-versao {
+                font-family: var(--mono);
+                font-size: 10px;
+                color: var(--text3);
+                margin-top: 4px;
+            }
+            .marcador-versao b {
+                color: var(--text2);
             }
 
             .resultado-icone {
@@ -321,6 +338,11 @@
                     class="aviso-caixa erro"
                     style="display: none"
                 ></div>
+                <div
+                    id="marcador-versao"
+                    class="marcador-versao"
+                    title="Data/hora da última alteração deste arquivo (frontend) e do backend (Code.gs)"
+                ></div>
             </div>
         </div>
 
@@ -405,9 +427,31 @@
 
             let _idToken = "";
             let _perfilGoogle = null;
+            let _meuPseudonimo = "";
             let _codigoQR = "";
             let _ipCache = "";
             let _ipCacheEm = 0;
+
+            /* ==========================================================================
+   MARCADOR DE VERSÃO — data/hora da última alteração deste arquivo (HTML),
+   exibida junto com a data/hora da última alteração do backend (Code.gs),
+   buscada em tempo real via getStatusBackend. Aparece discreto no rodapé
+   da tela de login.
+   CLAUDE: atualize ULTIMA_ATUALIZACAO_FRONTEND (formato "dd/mm/aaaa hh:mm",
+   horário de Fortaleza) toda vez que este arquivo for editado, ANTES de
+   entregar a versão nova. Não precisa tocar em mais nada além desta linha.
+   ========================================================================== */
+            const ULTIMA_ATUALIZACAO_FRONTEND = "03/09/2026 12:00";
+
+            async function carregarMarcadorVersao() {
+                const el = document.getElementById("marcador-versao");
+                if (!el) return;
+                el.innerHTML = `backend <b>···</b> · frontend <b>${ULTIMA_ATUALIZACAO_FRONTEND}</b>`;
+                const r = await api("getStatusBackend");
+                const backend =
+                    r.ok && r.atualizado_backend ? r.atualizado_backend : "?";
+                el.innerHTML = `backend <b>${backend}</b> · frontend <b>${ULTIMA_ATUALIZACAO_FRONTEND}</b>`;
+            }
 
             const MENSAGENS_ERRO = {
                 CODIGO_MAL_FORMADO:
@@ -548,9 +592,11 @@
                     nome: payload.name,
                     foto: payload.picture,
                 };
+                _meuPseudonimo = "";
 
                 renderizarChipIdentidade();
                 mostrarTela("tela-confirmar");
+                carregarPseudonimoLogin();
             }
 
             function renderizarChipIdentidade() {
@@ -562,7 +608,25 @@
                 const foto = _perfilGoogle.foto
                     ? `<img src="${esc(_perfilGoogle.foto)}" referrerpolicy="no-referrer" />`
                     : "";
-                chip.innerHTML = `${foto}<span>${esc(_perfilGoogle.email)}</span>`;
+                const pseudo = _meuPseudonimo
+                    ? `<span class="badge badge-pseudo" title="Pseudônimo usado para anonimizar notas e exibições públicas">${esc(_meuPseudonimo)}</span>`
+                    : "";
+                chip.innerHTML = `${foto}<span>${esc(_perfilGoogle.email)}</span>${pseudo}`;
+            }
+
+            // Busca o pseudônimo (só leitura, não registra presença) assim que o
+            // aluno faz login com o Google — exibido no chip de identidade, que
+            // fica visível na tela de confirmação. Se ainda não houver vínculo ou
+            // pseudônimo (ex.: 1º acesso, precisa de matrícula), o chip
+            // simplesmente continua mostrando só e-mail/foto, sem erro.
+            async function carregarPseudonimoLogin() {
+                const resp = await api("validarLoginGoogle", {
+                    codigo: _codigoQR,
+                });
+                if (resp.ok && resp.pseudonimo) {
+                    _meuPseudonimo = resp.pseudonimo;
+                    renderizarChipIdentidade();
+                }
             }
 
             function fazerLogout() {
@@ -571,6 +635,7 @@
                 }
                 _idToken = "";
                 _perfilGoogle = null;
+                _meuPseudonimo = "";
                 document.getElementById("chip-identidade").innerHTML = "";
                 document.getElementById("inp-matricula").value = "";
                 document.getElementById("aviso-matricula").style.display =
@@ -735,6 +800,7 @@
 
                 mostrarTela("tela-login");
                 initGoogleSignIn();
+                carregarMarcadorVersao();
             });
         </script>
     </body>
