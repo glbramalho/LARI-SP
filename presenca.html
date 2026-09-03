@@ -393,6 +393,7 @@
                     <h1 id="resultado-titulo">Presença registrada</h1>
                     <div id="resultado-badge"></div>
                     <p class="sub" id="resultado-detalhe"></p>
+                    <div id="resultado-pseudonimo" style="display: none"></div>
                 </div>
                 <div class="card">
                     <h2>
@@ -596,7 +597,6 @@
 
                 renderizarChipIdentidade();
                 mostrarTela("tela-confirmar");
-                carregarPseudonimoLogin();
             }
 
             function renderizarChipIdentidade() {
@@ -608,25 +608,7 @@
                 const foto = _perfilGoogle.foto
                     ? `<img src="${esc(_perfilGoogle.foto)}" referrerpolicy="no-referrer" />`
                     : "";
-                const pseudo = _meuPseudonimo
-                    ? `<span class="badge badge-pseudo" title="Pseudônimo usado para anonimizar notas e exibições públicas">${esc(_meuPseudonimo)}</span>`
-                    : "";
-                chip.innerHTML = `${foto}<span>${esc(_perfilGoogle.email)}</span>${pseudo}`;
-            }
-
-            // Busca o pseudônimo (só leitura, não registra presença) assim que o
-            // aluno faz login com o Google — exibido no chip de identidade, que
-            // fica visível na tela de confirmação. Se ainda não houver vínculo ou
-            // pseudônimo (ex.: 1º acesso, precisa de matrícula), o chip
-            // simplesmente continua mostrando só e-mail/foto, sem erro.
-            async function carregarPseudonimoLogin() {
-                const resp = await api("validarLoginGoogle", {
-                    codigo: _codigoQR,
-                });
-                if (resp.ok && resp.pseudonimo) {
-                    _meuPseudonimo = resp.pseudonimo;
-                    renderizarChipIdentidade();
-                }
+                chip.innerHTML = `${foto}<span>${esc(_perfilGoogle.email)}</span>`;
             }
 
             function fazerLogout() {
@@ -698,6 +680,18 @@
                 const titulo = document.getElementById("resultado-titulo");
                 const badge = document.getElementById("resultado-badge");
                 const detalhe = document.getElementById("resultado-detalhe");
+                const pseudoEl = document.getElementById(
+                    "resultado-pseudonimo",
+                );
+
+                _meuPseudonimo = resp.pseudonimo || "";
+                if (_meuPseudonimo) {
+                    pseudoEl.innerHTML = `<span class="badge badge-pseudo" title="Pseudônimo usado para anonimizar notas e exibições públicas">${esc(_meuPseudonimo)}</span>`;
+                    pseudoEl.style.display = "";
+                } else {
+                    pseudoEl.innerHTML = "";
+                    pseudoEl.style.display = "none";
+                }
 
                 if (resp.status_vinculo === "suspenso") {
                     icone.textContent = "⛔";
